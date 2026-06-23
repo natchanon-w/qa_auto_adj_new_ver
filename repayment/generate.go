@@ -212,7 +212,7 @@ func cmdGenerate(args []string) {
 			"fee_internal_acct_id":      nil,
 			"fee_trans_code":            nil,
 			"fee_type":                  nil,
-			"status":                    "PRCS",
+			"status":                    "PROCESSING",
 			"status_code":               "0000",
 			"status_desc":               "Processing",
 			"debit_status":              nil,
