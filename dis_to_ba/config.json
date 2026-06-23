@@ -1,0 +1,5 @@
+{
+  "bucket": "vb-payment-sit-s3-reconcile",
+  "base_path": "dp/adjustment/dis_to_ba/2026-01-11/",
+  "aws_profile": "s3-sit-vb"
+}

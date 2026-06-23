@@ -1,0 +1,111 @@
+========================================================
+  QA GUIDE: merge_step - Test Data Generator & Uploader
+========================================================
+
+OVERVIEW
+--------
+This tool generates encrypted CSV test data for the
+Disburse-to-BA reconcile pipeline, then uploads it to S3.
+
+REQUIREMENTS
+------------
+- Go 1.21+  (run: go version)
+- AWS CLI   (run: aws --version)
+- AWS profile configured in ~/.aws/credentials
+- public.pgp and private.pgp must be present in this folder
+
+
+CONFIGURATION
+-------------
+Edit config.json before running:
+
+  {
+    "bucket":      "vb-payment-sit-s3-reconcile",
+    "base_path":   "dp/adjustment/dis_to_ba/2026-01-11/",
+    "aws_profile": "s3_sit_vb"
+  }
+
+  - bucket      : S3 bucket name
+  - base_path   : S3 folder path (the date in the path sets the CSV filename date)
+  - aws_profile : AWS CLI profile name from ~/.aws/credentials
+
+
+STEPS
+-----
+
+STEP 1 — Generate test data
+  Command:
+    go run . generate <number-of-records>
+
+  Example (generate 5 records):
+    go run . generate 5
+
+  Output:
+    - work/<timestamp>/raw.csv      (editable plain CSV)
+    - work/<timestamp>/state.json   (internal state, do not edit)
+
+  Tip: You can open and edit raw.csv before running finalize
+       if you need to adjust specific field values.
+
+
+STEP 2 — Finalize (encrypt + verify)
+  Command:
+    go run . finalize
+
+  What it does:
+    - Reads raw.csv from the latest work folder
+    - Encrypts CSV using public.pgp
+    - Verifies the encryption using private.pgp (SHA256 checksum)
+    - Generates control JSON and SQL insert/delete scripts
+
+  Output (inside work/<timestamp>/output/):
+    - DISBURSE_TO_BA_RECONCILE_UNMATCHED_<date>.csv.encrypted
+    - reconcile-lending-disburse_to_ba-<uuid>.json
+    - insert_disburse_to_transactions.sql
+    - delete_disburse_to_transactions.sql
+
+
+STEP 3 — Upload to S3
+  Command:
+    go run . upload
+
+  What it does:
+    - Cleans all existing files in the S3 base_path folder
+    - Uploads .encrypted and .json files to S3
+
+  Target:
+    s3://<bucket>/<base_path>/
+
+
+FULL EXAMPLE
+------------
+  go run . generate 5
+  go run . finalize
+  go run . upload
+
+
+WORKING WITH A SPECIFIC FOLDER
+-------------------------------
+If you need to finalize or upload a specific work folder
+(not the latest), pass the folder path as an argument:
+
+  go run . finalize work/20260617_131102
+  go run . upload   work/20260617_131102
+
+
+NOTES
+-----
+- The date in the encrypted CSV filename is taken from
+  base_path in config.json, NOT from today's date.
+
+  Example:
+    config.json base_path : "dp/adjustment/dis_to_ba/2026-01-11/"
+    Output filename       : DISBURSE_TO_BA_RECONCILE_UNMATCHED_20260111.csv.encrypted
+
+  To change the filename date, update the date segment in base_path.
+
+- Each time you run upload, the S3 folder is wiped first,
+  so only the latest generated files will be present.
+
+- SQL files are for inserting/deleting test records in the
+  bill_payment_transaction table (run manually in DB as needed).
