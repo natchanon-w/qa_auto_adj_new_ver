@@ -28,6 +28,16 @@ func cmdFinalize(args []string) {
 		os.Exit(1)
 	}
 
+	cfg := readConfig()
+	pathParts := strings.Split(strings.Trim(cfg.BasePath, "/"), "/")
+	csvDateStr := pathParts[len(pathParts)-1]
+	csvDate, err := time.Parse("2006-01-02", csvDateStr)
+	if err != nil {
+		fmt.Printf("Cannot parse date from base_path %q: %v\n", cfg.BasePath, err)
+		os.Exit(1)
+	}
+	csvFilename := fmt.Sprintf("REPAYMENT_MANUAL_DDR_RECONCILE_UNMATCHED_%s.csv", csvDate.Format("20060102"))
+
 	rawCsvPath := filepath.Join(workDir, "raw.csv")
 	header, rows, err := readCSVWithHeader(rawCsvPath)
 	if err != nil {
@@ -77,9 +87,9 @@ func cmdFinalize(args []string) {
 		}
 		chunk := rows[start:end]
 
-		plainFilename := state.CsvFilename
+		plainFilename := csvFilename
 		if numChunks > 1 {
-			base := strings.TrimSuffix(state.CsvFilename, ".csv")
+			base := strings.TrimSuffix(csvFilename, ".csv")
 			plainFilename = fmt.Sprintf("%s_%d.csv", base, i+1)
 		}
 		encFilename := plainFilename + ".encrypted"

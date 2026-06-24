@@ -269,7 +269,15 @@ func cmdGenerate(args []string) {
 	}
 	f.WriteString(strings.Join(csvHeader, "|") + "\n")
 	for _, row := range csvRows {
-		f.WriteString(strings.Join(row, "|") + "\n")
+		cleaned := make([]string, len(row))
+		for i, v := range row {
+			if v == "NULL" {
+				cleaned[i] = "N/A"
+			} else {
+				cleaned[i] = v
+			}
+		}
+		f.WriteString(strings.Join(cleaned, "|") + "\n")
 	}
 	f.Close()
 
