@@ -37,6 +37,9 @@ func cmdFinalize(args []string) {
 		os.Exit(1)
 	}
 	csvFilename := fmt.Sprintf("REPAYMENT_MANUAL_DDR_RECONCILE_UNMATCHED_%s.csv", csvDate.Format("20060102"))
+	if state.CsvFilename != csvFilename {
+		fmt.Printf("Warning: config base_path date does not match generated filename — using config date (%s)\n", csvDate.Format("2006-01-02"))
+	}
 
 	rawCsvPath := filepath.Join(workDir, "raw.csv")
 	header, rows, err := readCSVWithHeader(rawCsvPath)
