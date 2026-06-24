@@ -272,7 +272,7 @@ func cmdGenerate(args []string) {
 		cleaned := make([]string, len(row))
 		for i, v := range row {
 			if v == "NULL" {
-				cleaned[i] = "N/A"
+				cleaned[i] = ""
 			} else {
 				cleaned[i] = v
 			}
