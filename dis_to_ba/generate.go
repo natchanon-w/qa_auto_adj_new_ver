@@ -14,15 +14,14 @@ import (
 
 var csvHeader = []string{
 	"reconcile_status", "unmatch_reason", "oper_trigger", "auto_adj_txn_status", "auto_adj_acct_status",
-	"reconcile_ref_id", "bpp_check_duplicate_key", "dlp_check_duplicate_key", "dpp_check_duplicate_key",
-	"dcb_check_duplicate_key", "dlp_effective_date", "dlp_event_dtm", "dlp_from_loan_acct_no",
-	"dlp_from_loan_acct_id", "dlp_txn_status", "dlp_txn_amt", "dlp_acct_status", "dpp_effective_date",
-	"dpp_event_dtm", "dpp_from_loan_acct_no", "dpp_from_loan_acct_id", "dpp_txn_status", "dpp_txn_amt",
+	"reconcile_ref_id", "dcb_check_duplicate_key", "dlp_check_duplicate_key", "dpp_check_duplicate_key",
+	"bpp_check_duplicate_key", "dlp_effective_date", "dlp_event_dtm", "dlp_from_loan_acct_no",
+	"dlp_from_loan_acct_id", "dlp_txn_status", "dlp_txn_amt", "dlp_acct_status", "dlp_product_flow_type",
+	"dpp_effective_date", "dpp_event_dtm", "dpp_from_loan_acct_no", "dpp_txn_status", "dpp_txn_amt",
 	"dpp_cust_fee", "dpp_banking_agent_fee", "dpp_dcb_status", "dpp_dlp_status", "dpp_comp_code",
 	"dpp_posting_type", "dcb_effective_date", "dcb_event_dtm", "dcb_from_loan_acct_id", "dcb_txn_status",
 	"dcb_txn_amt", "dcb_cust_fee", "dcb_acct_status", "dcb_posting_type", "bpp_effective_date",
 	"bpp_event_dtm", "bpp_txn_status", "bpp_txn_amt", "bpp_banking_agent_fee", "bpp_comp_code",
-	"bpp_payment_ref1", "bpp_payment_ref2", "bpp_payment_ref3", "bpp_payment_ref4",
 }
 
 var cases = []map[string]map[string]string{
@@ -47,10 +46,10 @@ var recTemplate = map[string]string{
 	"auto_adj_txn_status":     `["DLP","DPP"]`,
 	"auto_adj_acct_status":    `["DLP","DCB"]`,
 	"reconcile_ref_id":        "0006FFFFFFF-K30001FFFFFFFFFF-145318-422109005368",
-	"bpp_check_duplicate_key": "0006FFFFFFF-K30001FFFFFFFFFF-145318-422109005368",
+	"dcb_check_duplicate_key": "0006FFFFFFF-K30001FFFFFFFFFF-145318-422109005368",
 	"dlp_check_duplicate_key": "",
 	"dpp_check_duplicate_key": "0006FFFFFFF-K30001FFFFFFFFFF-145318-422109005368",
-	"dcb_check_duplicate_key": "0006FFFFFFF-K30001FFFFFFFFFF-145318-422109005368",
+	"bpp_check_duplicate_key": "0006FFFFFFF-K30001FFFFFFFFFF-145318-422109005368",
 	"dlp_effective_date":      "",
 	"dlp_event_dtm":           "",
 	"dlp_from_loan_acct_no":   "",
@@ -58,10 +57,10 @@ var recTemplate = map[string]string{
 	"dlp_txn_status":          "",
 	"dlp_txn_amt":             "",
 	"dlp_acct_status":         "",
+	"dlp_product_flow_type":   "",
 	"dpp_effective_date":      "2025-01-01",
 	"dpp_event_dtm":           "2025-01-01 15:40:01",
 	"dpp_from_loan_acct_no":   "123456789012",
-	"dpp_from_loan_acct_id":   "00e41189-f298-4774-b826-03fce0ce62c9",
 	"dpp_txn_status":          "COMPLETED",
 	"dpp_txn_amt":             "1000",
 	"dpp_cust_fee":            "1000",
@@ -84,10 +83,6 @@ var recTemplate = map[string]string{
 	"bpp_txn_amt":             "1000",
 	"bpp_banking_agent_fee":   "1000",
 	"bpp_comp_code":           "1143",
-	"bpp_payment_ref1":        "1234",
-	"bpp_payment_ref2":        "1234",
-	"bpp_payment_ref3":        "1234",
-	"bpp_payment_ref4":        "1234",
 }
 
 var sqlTemplate = map[string]string{

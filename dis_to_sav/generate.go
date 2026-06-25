@@ -16,10 +16,10 @@ var csvHeader = []string{
 	"reconcile_status", "unmatch_reason", "oper_trigger", "auto_adj_txn_status", "auto_adj_acct_status",
 	"reconcile_ref_id", "dcb_check_duplicate_key", "dlp_check_duplicate_key", "dpp_check_duplicate_key",
 	"dlp_effective_date", "dlp_event_dtm", "dlp_from_loan_acct_no", "dlp_from_loan_acct_id", "dlp_to_acct_no",
-	"dlp_txn_status", "dlp_txn_amt", "dlp_drawdown_acct_status", "dpp_effective_date", "dpp_event_dtm",
+	"dlp_txn_status", "dlp_txn_amt", "dlp_acct_status", "dpp_effective_date", "dpp_event_dtm",
 	"dpp_from_loan_acct_no", "dpp_from_loan_acct_id", "dpp_to_acct_no", "dpp_to_acct_id", "dpp_txn_status",
 	"dpp_txn_amt", "dpp_posting_type", "dcb_effective_date", "dcb_event_dtm", "dcb_from_loan_acct_id",
-	"dcb_to_acct_id", "dcb_txn_status", "dcb_txn_amt", "dcb_drawdown_acct_status", "dcb_posting_type",
+	"dcb_to_acct_id", "dcb_txn_status", "dcb_txn_amt", "dcb_acct_status", "dcb_posting_type",
 }
 
 var cases = []map[string]map[string]string{
@@ -45,7 +45,7 @@ var recTemplate = map[string]string{
 	"dlp_to_acct_no":           "",
 	"dlp_txn_status":           "",
 	"dlp_txn_amt":              "",
-	"dlp_drawdown_acct_status": "",
+	"dlp_acct_status":          "",
 	"dpp_effective_date":       "2025-01-01",
 	"dpp_event_dtm":            "2025-01-01 15:40:01",
 	"dpp_from_loan_acct_no":    "123456789012",
@@ -61,7 +61,7 @@ var recTemplate = map[string]string{
 	"dcb_to_acct_id":           "11e41189-f298-4774-b826-03fce0ce62c9",
 	"dcb_txn_status":           "SUCCESS",
 	"dcb_txn_amt":              "1000",
-	"dcb_drawdown_acct_status": "OPEN",
+	"dcb_acct_status":          "OPEN",
 	"dcb_posting_type":         "OUTBOUND_INBOUND",
 }
 
