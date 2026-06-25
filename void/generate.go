@@ -15,14 +15,14 @@ import (
 
 var csvHeader = []string{
 	"reconcile_status", "unmatch_reason", "oper_trigger", "auto_adj_txn_status", "auto_adj_acct_status",
-	"reconcile_ref_id", "dcb_check_duplicate_key", "dlp_check_duplicate_key", "dpp_check_duplicate_key",
+	"reconcile_ref_id", "dlp_check_duplicate_key", "dpp_check_duplicate_key", "dcb_check_duplicate_key",
 	"dlp_effective_date", "dlp_event_dtm", "dlp_from_loan_acct_no", "dlp_from_loan_acct_id",
 	"dlp_txn_status", "dlp_txn_amt", "dlp_acct_status", "dlp_product_flow_type",
-	"dpp_effective_date", "dpp_event_dtm", "dpp_from_loan_acct_no",
+	"dpp_effective_date", "dpp_event_dtm", "dpp_from_main_loan_acct_no",
 	"dpp_txn_status", "dpp_txn_amt", "dpp_cust_fee", "dpp_dcb_status",
 	"dpp_dlp_status", "dpp_biller_id", "dpp_payment_ref1", "dpp_payment_ref2", "dpp_payment_ref3",
 	"dpp_payment_ref4", "dpp_posting_type", "dcb_effective_date", "dcb_event_dtm", "dcb_from_loan_acct_id",
-	"dcb_txn_status", "dcb_txn_amt", "dcb_cust_fee", "dcb_acct_status", "dcb_posting_type",
+	"dcb_txn_status", "dcb_txn_amt", "dcb_cust_fee", "dcb_acct_sts", "dcb_posting_type",
 }
 
 var cases = []map[string]string{
@@ -114,7 +114,7 @@ func cmdGenerate(args []string) {
 			"dlp_product_flow_type":       "",
 			"dpp_effective_date":          now.Format("2006-01-02"),
 			"dpp_event_dtm":               now.Format("2006-01-02 15:04"),
-			"dpp_from_loan_acct_no":  "123-4-56789-012",
+			"dpp_from_main_loan_acct_no": "123-4-56789-012",
 			"dpp_txn_status":              caseItem["dpp_txn_status"],
 			"dpp_txn_amt":             "1000.00",
 			"dpp_cust_fee":            "1000.00",
@@ -132,7 +132,7 @@ func cmdGenerate(args []string) {
 			"dcb_txn_status":          caseItem["dcb_txn_status"],
 			"dcb_txn_amt":             "1000.00",
 			"dcb_cust_fee":            "1000.00",
-			"dcb_acct_status":         "VOIDED",
+			"dcb_acct_sts":            "VOIDED",
 			"dcb_posting_type":        "OUTBOUND",
 		}
 		var row []string
