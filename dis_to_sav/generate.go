@@ -209,6 +209,7 @@ func cmdGenerate(args []string) {
 			sqlVals[k] = v
 		}
 		sqlVals["ref_id"] = sharedRef
+		sqlVals["original_ref_id"] = sharedRef
 		sqlVals["id"] = newUUIDv7()
 		sqlVals["created_request_id"] = sharedRef
 		for k, v := range c["sql"] {
