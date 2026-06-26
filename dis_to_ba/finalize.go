@@ -201,7 +201,7 @@ func cmdFinalize(args []string) {
 			}
 		}
 		sqlRowsVals = append(sqlRowsVals, fmt.Sprintf("(%s)", strings.Join(vals, ", ")))
-		sqlRefs = append(sqlRefs, fmt.Sprintf("'%s'", ref))
+		sqlRefs = append(sqlRefs, fmt.Sprintf("'%s'", row["ref_id"]))
 	}
 
 	fSql, _ := os.Create(sqlPath)
