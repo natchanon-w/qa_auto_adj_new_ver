@@ -137,7 +137,7 @@ var sqlTemplate = map[string]string{
 	"transaction_type":          "DISBURSEMENT",
 	"posting_type":              "OUTBOUND_INBOUND",
 	"effective_date":            "2026-04-22",
-	"reversal_flag":             "",
+	"reversal_flag":             "N",
 	"transfer_type":             "",
 	"input_terminal":            "",
 	"dcb_request":               `{"inbound": {"toAccountId": "39cdfce5-52af-49d8-b91e-ac14d530843d", "transactionCode": "MSADTSN", "transactionClass": "D", "internalAccountId": "FUND_TRANSFER"}, "clientId": "DigitalPaymentProcessorClientID", "outbound": {"feeType": "", "fromAddress": "PRINCIPAL", "fromAccountId": "cf57d7f1-79c1-4df4-aab9-eb62be6d3fb6", "transactionCode": "MLDSIN", "transactionClass": "L", "internalAccountId": "FUND_TRANSFER"}, "requestId": "5b0232a3-236c-4b97-883d-7e5c14890fd1", "postingType": "OUTBOUND_INBOUND", "denomination": "THB", "reversalFlag": false, "effectiveDate": "20260422", "additionalInfo": {"refId": "5b0232a3-236c-4b97-883d-7e5c14890fd1", "refNo": "611211000005", "originalChannelRequestId": "5b0232a3-236c-4b97-883d-7e5c14890fd1"}, "transactionType": "DISBURSEMENT", "transactionRefId": "D06L2611211485180005", "transactionAmount": 5000.00, "transactionDatetime": "2026-04-22T11:48:50+07:00"}`,
