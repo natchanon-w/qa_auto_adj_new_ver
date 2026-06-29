@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -212,12 +213,13 @@ func cmdGenerate(args []string) {
 	for t := 0; t < times; t++ {
 		c := cases[t%len(cases)]
 		sharedRef := newUUIDv7()
+		retrievalRefNo := newRetrievalRefNo()
 
 		csvRowMap := make(map[string]string)
 		for k, v := range recTemplate {
 			csvRowMap[k] = v
 		}
-		csvRowMap["reconcile_ref_id"] = sharedRef
+		csvRowMap["reconcile_ref_id"] = retrievalRefNo
 		csvRowMap["dcb_check_duplicate_key"] = sharedRef
 		csvRowMap["dpp_check_duplicate_key"] = sharedRef
 		csvRowMap["dlp_check_duplicate_key"] = sharedRef
@@ -244,6 +246,7 @@ func cmdGenerate(args []string) {
 			sqlVals[k] = v
 		}
 		sqlVals["ref_id"] = sharedRef
+		sqlVals["retrieval_ref_no"] = retrievalRefNo
 		sqlVals["dcb_created_request_id"] = sharedRef
 		for k, v := range c["sql"] {
 			sqlVals[k] = v
@@ -257,7 +260,7 @@ func cmdGenerate(args []string) {
 				}
 			}
 		}
-		sqlRowsMap[sharedRef] = sqlVals
+		sqlRowsMap[retrievalRefNo] = sqlVals
 		sharedRefs = append(sharedRefs, sharedRef)
 	}
 
@@ -288,6 +291,10 @@ func cmdGenerate(args []string) {
 	fmt.Printf("Work dir : %s\n", workDir)
 	fmt.Printf("Raw CSV  : %s\n", rawCsvPath)
 	fmt.Printf("\nEdit raw.csv if needed, then run:\n  go run . finalize\n")
+}
+
+func newRetrievalRefNo() string {
+	return fmt.Sprintf("%012d", rand.Int63n(900000000000)+100000000000)
 }
 
 func newUUIDv7() string {
