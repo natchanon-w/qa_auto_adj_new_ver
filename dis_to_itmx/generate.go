@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -294,7 +293,7 @@ func cmdGenerate(args []string) {
 }
 
 func newRetrievalRefNo() string {
-	return fmt.Sprintf("%012d", rand.Int63n(900000000000)+100000000000)
+	return newUUIDv7()
 }
 
 func newUUIDv7() string {
