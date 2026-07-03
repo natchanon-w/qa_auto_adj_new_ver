@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -218,7 +219,7 @@ func cmdGenerate(args []string) {
 		for k, v := range recTemplate {
 			csvRowMap[k] = v
 		}
-		csvRowMap["reconcile_ref_id"] = retrievalRefNo
+		csvRowMap["reconcile_ref_id"] = sharedRef
 		csvRowMap["dcb_check_duplicate_key"] = sharedRef
 		csvRowMap["dpp_check_duplicate_key"] = sharedRef
 		csvRowMap["dlp_check_duplicate_key"] = sharedRef
@@ -259,7 +260,12 @@ func cmdGenerate(args []string) {
 				}
 			}
 		}
-		sqlRowsMap[retrievalRefNo] = sqlVals
+		randomTime := fmt.Sprintf("%02d:%02d:%02d", rand.Intn(24), rand.Intn(60), rand.Intn(60))
+		sqlVals["created_dtm"] = csvDate.Format("2006-01-02") + " " + randomTime
+		sqlVals["updated_dtm"] = csvDate.Format("2006-01-02") + " " + randomTime
+		sqlVals["tfr_dtm"] = csvDate.Format("2006-01-02") + " " + randomTime
+		sqlVals["effective_date"] = csvDate.Format("2006-01-02")
+		sqlRowsMap[sharedRef] = sqlVals
 		sharedRefs = append(sharedRefs, sharedRef)
 	}
 
@@ -293,7 +299,7 @@ func cmdGenerate(args []string) {
 }
 
 func newRetrievalRefNo() string {
-	return newUUIDv7()
+	return fmt.Sprintf("%012d", rand.Int63n(900000000000)+100000000000)
 }
 
 func newUUIDv7() string {
