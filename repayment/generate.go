@@ -93,8 +93,6 @@ func cmdGenerate(args []string) {
 	sqlRowsMap := make(map[string]map[string]string)
 	var sharedRefs []string
 
-	dtmFull := now.Format("2006-01-02 15:04:05.000000 +00:00")
-
 	for t := 0; t < times; t++ {
 		caseItem := cases[t%len(cases)]
 		sharedRef := newUUIDv7()
@@ -150,6 +148,7 @@ func cmdGenerate(args []string) {
 		csvRows = append(csvRows, row)
 
 		// Build SQL row — store pre-formatted SQL fragments
+		recordDtm := csvDate.Format("2006-01-02") + fmt.Sprintf(" %02d:%02d:%02d.000000 +00:00", rand.Intn(24), rand.Intn(60), rand.Intn(60))
 		cifNo := fmt.Sprintf("%015d", rand.Int63n(999999999999999))
 		dcbReq := fmt.Sprintf(`{"clientId": "DigitalPaymentProcessorClientID", "requestId": "%s", "effectiveDate": "%s", "transactionDatetime": "%sT%s+07:00"}`,
 			sharedRef, now.Format("20060102"), now.Format("2006-01-02"), now.Format("15:04:05"))
@@ -160,10 +159,10 @@ func cmdGenerate(args []string) {
 			"original_ref_id":           "",
 			"req_channel":               "VB",
 			"requester":                 "DLP",
-			"req_dtm":                   dtmFull,
+			"req_dtm":                   recordDtm,
 			"ref_no":                    fmt.Sprintf("%012d", rand.Int63n(999999999999)),
 			"payment_txn_ref":           fmt.Sprintf("D07D2%s", now.Format("0102150405")),
-			"tfr_dtm":                   dtmFull,
+			"tfr_dtm":                   recordDtm,
 			"created_request_id":        sharedRef,
 			"amount":                    "1850.00",
 			"denomination":              "THB",
@@ -221,11 +220,11 @@ func cmdGenerate(args []string) {
 			"debit_status":              nil,
 			"credit_status":             nil,
 			"service_type":              "Repayment",
-			"created_dtm":               dtmFull,
-			"updated_dtm":               dtmFull,
+			"created_dtm":               recordDtm,
+			"updated_dtm":               recordDtm,
 			"transaction_type":          "REPAYMENT_TDR_INITIATE",
 			"posting_type":              "OUTBOUND_CUSTOM",
-			"effective_date":            now.Format("2006-01-02"),
+			"effective_date":            csvDate.Format("2006-01-02"),
 			"reversal_flag":             "N",
 			"transfer_type":             "MANUAL_INITIAL",
 			"input_terminal":            "KEYIN",

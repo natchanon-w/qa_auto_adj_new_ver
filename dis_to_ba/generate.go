@@ -265,6 +265,11 @@ func cmdGenerate(args []string) {
 					}
 				}
 			}
+			randomTime := fmt.Sprintf("%02d:%02d:%02d", rand.Intn(24), rand.Intn(60), rand.Intn(60))
+			sqlVals["created_dtm"] = csvDate.Format("2006-01-02") + " " + randomTime
+			sqlVals["updated_dtm"] = csvDate.Format("2006-01-02") + " " + randomTime
+			sqlVals["tfr_dtm"] = csvDate.Format("2006-01-02") + " " + randomTime
+			sqlVals["effective_date"] = csvDate.Format("2006-01-02")
 			sqlRowsMap[retrievalRefNo] = sqlVals
 		sharedRefs = append(sharedRefs, sharedRef)
 	}

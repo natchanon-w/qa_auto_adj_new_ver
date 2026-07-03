@@ -142,6 +142,7 @@ func cmdGenerate(args []string) {
 		csvRows = append(csvRows, row)
 
 		// Build SQL row — store pre-formatted SQL fragments
+		recordDtm := csvDate.Format("2006-01-02") + fmt.Sprintf(" %02d:%02d:%02d.000000", rand.Intn(24), rand.Intn(60), rand.Intn(60))
 		sqlValsRaw := map[string]interface{}{
 			"ref_id":                    sharedRef,
 			"payment_token":             "",
@@ -183,8 +184,8 @@ func cmdGenerate(args []string) {
 			"proc_cd":                   "",
 			"terminal_type":             "",
 			"category":                  "",
-			"created_dtm":               now.Format("2006-01-02 15:04:05.000000"),
-			"updated_dtm":               now.Format("2006-01-02 15:04:05.000000"),
+			"created_dtm":               recordDtm,
+			"updated_dtm":               recordDtm,
 			"payment_txn_ref":           nil,
 			"from_acct_no":              "0000000043",
 			"pib_id":                    "",
@@ -203,13 +204,13 @@ func cmdGenerate(args []string) {
 			"transaction_class":         "D",
 			"denomination":              "THB",
 			"reversal_flag":             "",
-			"tfr_dtm":                   nil,
+			"tfr_dtm":                   recordDtm,
 			"fee_internal_account_id":   "",
 			"fee_transaction_code":      "",
 			"fee_transaction_amount":    "0.00",
 			"fee_type":                  "",
 			"posting_type":              "OUTBOUND",
-			"effective_date":            nil,
+			"effective_date":            csvDate.Format("2006-01-02"),
 			"dlp_status":                caseItem["init_dlp_status"],
 			"state":                     "",
 			"partner_ref_id":            nil,
