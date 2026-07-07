@@ -88,6 +88,7 @@ func cmdGenerate(args []string) {
 
 	var csvRows [][]string
 	sqlRowsMap := make(map[string]map[string]string)
+	sqlRowsVoidMap := make(map[string]map[string]string)
 	var sharedRefs []string
 
 	for t := 0; t < times; t++ {
@@ -142,7 +143,9 @@ func cmdGenerate(args []string) {
 		csvRows = append(csvRows, row)
 
 		// Build SQL row — store pre-formatted SQL fragments
-		recordDtm := csvDate.Format("2006-01-02") + fmt.Sprintf(" %02d:%02d:%02d.000000", rand.Intn(24), rand.Intn(60), rand.Intn(60))
+		recordTime := time.Date(csvDate.Year(), csvDate.Month(), csvDate.Day(), rand.Intn(24), rand.Intn(60), rand.Intn(60), 0, csvDate.Location())
+		recordDtm := recordTime.Format("2006-01-02 15:04:05.000000")
+		reqDtm := recordTime.Format("2006-01-02 15:04:05")
 		sqlValsRaw := map[string]interface{}{
 			"ref_id":                    sharedRef,
 			"payment_token":             "",
@@ -176,7 +179,7 @@ func cmdGenerate(args []string) {
 			"source_of_fund":            "AC",
 			"sof_type":                  `{"casa":{"sofAccount":"1234567890","sofBranchCode":"001","sofAccountName":"John Doe","currency":"THB","deductAmount":11,"toCurrencyCode":"","convertedAmount":0,"fromCostCenter":"","exchangeRate":0}}`,
 			"req_by":                    "VB",
-			"req_dtm":                   now.Format("2006-01-02 15:04:05"),
+			"req_dtm":                   reqDtm,
 			"reverse_dtm":               nil,
 			"bill_payment_workflow":     "VOID",
 			"to_acct_no":                "",
@@ -244,6 +247,52 @@ func cmdGenerate(args []string) {
 			sqlVals[col] = sqlFormat(sqlValsRaw[col])
 		}
 		sqlRowsMap[sharedRef] = sqlVals
+
+		// bill_payment_transaction_void — one row per generated transaction, linked via retrieval_ref_no
+		retrievalRefNoVoid := fmt.Sprintf("%d", 100000000000+rand.Int63n(900000000000))
+		fromBankCode := sqlValsRaw["from_bank_code"].(string)
+		instructionIdVoid := fmt.Sprintf("%s%s%s%s",
+			recordTime.Format("20060102150405"),
+			retrievalRefNoVoid[len(retrievalRefNoVoid)-6:],
+			fromBankCode,
+			retrievalRefNoVoid,
+		)
+		refIdVoid := newUUIDv7()
+		sqlValsVoidRaw := map[string]interface{}{
+			"transaction_id":        1000000 + rand.Int63n(9000000),
+			"transaction_code":      "MLDBPSCV",
+			"retrieval_ref_no":      sqlValsRaw["retrieval_ref_no"], // links back to bill_payment_transaction
+			"retrieval_ref_no_void": retrievalRefNoVoid,
+			"pib_id":                newUUIDv7(),
+			"pib_id_void":           newUUIDv7(),
+			"status":                "FAILED",
+			"from_acct_id":          sqlValsRaw["from_acct_id"],
+			"from_bank_code":        fromBankCode,
+			"to_acct_id":            newUUIDv7(),
+			"to_bank_code":          "888",
+			"amount":                sqlValsRaw["amount"],
+			"ref1":                  sqlValsRaw["ref1"],
+			"ref2":                  sqlValsRaw["ref2"],
+			"ref3":                  sqlValsRaw["ref3"],
+			"status_cd":             "DLP0343",
+			"status_desc":           "close drawdown account timeout",
+			"void_dtm":              recordDtm,
+			"pm_dtm":                recordDtm,
+			"req_by":                sqlValsRaw["req_by"],
+			"req_dtm":               sqlValsRaw["req_dtm"],
+			"created_dtm":           recordDtm,
+			"updated_dtm":           recordDtm,
+			"create_request_id":     refIdVoid,
+			"tfr_dtm":               recordDtm,
+			"instruction_id_void":   instructionIdVoid,
+			"ref_id":                refIdVoid,
+		}
+		sqlValsVoid := make(map[string]string)
+		for _, col := range sqlColumnsVoid {
+			sqlValsVoid[col] = sqlFormat(sqlValsVoidRaw[col])
+		}
+		sqlRowsVoidMap[sharedRef] = sqlValsVoid
+
 		sharedRefs = append(sharedRefs, sharedRef)
 	}
 
@@ -263,6 +312,7 @@ func cmdGenerate(args []string) {
 		Timestamp:   timestamp,
 		CsvFilename: csvFilename,
 		SqlRows:     sqlRowsMap,
+		SqlRowsVoid: sqlRowsVoidMap,
 		SharedRefs:  sharedRefs,
 	}
 	stateBytes, _ := json.MarshalIndent(state, "", "  ")

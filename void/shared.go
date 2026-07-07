@@ -24,6 +24,7 @@ type StateFile struct {
 	Timestamp   string                       `json:"timestamp"`
 	CsvFilename string                       `json:"csv_filename"`
 	SqlRows     map[string]map[string]string `json:"sql_rows"`
+	SqlRowsVoid map[string]map[string]string `json:"sql_rows_void"`
 	SharedRefs  []string                     `json:"shared_refs"`
 }
 
@@ -43,6 +44,14 @@ var sqlColumns = []string{
 	"from_account_display_name", "from_account_name_th", "from_account_name_en", "from_province_code",
 	"term_type", "pan_id", "terminal_id", "transferee_fee", "transferer_fee", "sender_fee", "instruction_id",
 	"type_of_sender", "type_of_receiver", "share_flag", "mer_cat_code", "settlement_date",
+}
+
+// bill_payment_transaction_void columns (seq_id is a DB-generated serial and is excluded)
+var sqlColumnsVoid = []string{
+	"transaction_id", "transaction_code", "retrieval_ref_no", "retrieval_ref_no_void",
+	"pib_id", "pib_id_void", "status", "from_acct_id", "from_bank_code", "to_acct_id", "to_bank_code",
+	"amount", "ref1", "ref2", "ref3", "status_cd", "status_desc", "void_dtm", "pm_dtm", "req_by", "req_dtm",
+	"created_dtm", "updated_dtm", "create_request_id", "tfr_dtm", "instruction_id_void", "ref_id",
 }
 
 func baseDir() string {

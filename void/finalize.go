@@ -159,13 +159,17 @@ func cmdFinalize(args []string) {
 
 	// SQL — values are pre-formatted SQL fragments; emit verbatim
 	const tableName = "bill_payment_transaction"
+	const tableNameVoid = "bill_payment_transaction_void"
 	const batchSize = 500
 	sqlPath := filepath.Join(outputDir, "insert_void_transactions.sql")
 	deleteSqlPath := filepath.Join(outputDir, "delete_void_transactions.sql")
-	insertHeader := buildInsertHeader(tableName)
+	insertHeader := buildInsertHeader(tableName, sqlColumns)
+	insertHeaderVoid := buildInsertHeader(tableNameVoid, sqlColumnsVoid)
 
 	var sqlRowsVals []string
+	var sqlRowsValsVoid []string
 	var deleteStmts []string
+	var deleteStmtsVoid []string
 	for _, ref := range orderedRefs {
 		row, ok := state.SqlRows[ref]
 		if !ok {
@@ -177,6 +181,16 @@ func cmdFinalize(args []string) {
 		}
 		sqlRowsVals = append(sqlRowsVals, fmt.Sprintf("(%s)", strings.Join(vals, ", ")))
 		deleteStmts = append(deleteStmts, fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"ref_id\" = '%s';", tableName, ref))
+
+		if rowVoid, ok := state.SqlRowsVoid[ref]; ok {
+			var valsVoid []string
+			for _, col := range sqlColumnsVoid {
+				valsVoid = append(valsVoid, rowVoid[col]) // already SQL-formatted
+			}
+			sqlRowsValsVoid = append(sqlRowsValsVoid, fmt.Sprintf("(%s)", strings.Join(valsVoid, ", ")))
+			// void.ref_id is independent of the main table's ref_id; retrieval_ref_no is the shared link
+			deleteStmtsVoid = append(deleteStmtsVoid, fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"retrieval_ref_no\" = %s;", tableNameVoid, rowVoid["retrieval_ref_no"]))
+		}
 	}
 
 	fSql, _ := os.Create(sqlPath)
@@ -187,9 +201,18 @@ func cmdFinalize(args []string) {
 		}
 		fSql.WriteString(insertHeader + strings.Join(sqlRowsVals[i:end], ",\n") + ";\n")
 	}
+	for i := 0; i < len(sqlRowsValsVoid); i += batchSize {
+		end := i + batchSize
+		if end > len(sqlRowsValsVoid) {
+			end = len(sqlRowsValsVoid)
+		}
+		fSql.WriteString(insertHeaderVoid + strings.Join(sqlRowsValsVoid[i:end], ",\n") + ";\n")
+	}
 	fSql.Close()
 
 	fDel, _ := os.Create(deleteSqlPath)
+	// void rows reference the main table via ref_id, so delete them first
+	fDel.WriteString(strings.Join(deleteStmtsVoid, "\n") + "\n")
 	fDel.WriteString(strings.Join(deleteStmts, "\n") + "\n")
 	fDel.Close()
 
@@ -198,17 +221,17 @@ func cmdFinalize(args []string) {
 		fmt.Printf("  ✓ %s\n", fn)
 	}
 	fmt.Printf("  ✓ %s\n", controlFilename)
-	fmt.Printf("  ✓ insert_void_transactions.sql  (%d rows)\n", len(sqlRowsVals))
+	fmt.Printf("  ✓ insert_void_transactions.sql  (%d bill_payment_transaction rows, %d bill_payment_transaction_void rows)\n", len(sqlRowsVals), len(sqlRowsValsVoid))
 	fmt.Printf("  ✓ delete_void_transactions.sql\n")
 	fmt.Printf("\nRun 'go run . upload' to push to S3\n")
 }
 
-func buildInsertHeader(tableName string) string {
+func buildInsertHeader(tableName string, columns []string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("INSERT INTO \"public\".\"%s\" (", tableName))
-	for i, c := range sqlColumns {
+	for i, c := range columns {
 		sb.WriteString(fmt.Sprintf("\"%s\"", c))
-		if i < len(sqlColumns)-1 {
+		if i < len(columns)-1 {
 			sb.WriteString(", ")
 		}
 	}
