@@ -151,8 +151,9 @@ func cmdGenerate(args []string) {
 		recordTime := time.Date(csvDate.Year(), csvDate.Month(), csvDate.Day(), rand.Intn(24), rand.Intn(60), rand.Intn(60), 0, csvDate.Location())
 		recordDtm := recordTime.Format("2006-01-02 15:04:05.000000")
 		reqDtm := recordTime.Format("2006-01-02 15:04:05")
+		parentRefId := newUUIDv7()
 		sqlValsRaw := map[string]interface{}{
-			"ref_id":                    sharedRef,
+			"ref_id":                    parentRefId,
 			"payment_token":             "",
 			"retrieval_ref_no":          fmt.Sprintf("%d", 100000000000+rand.Int63n(900000000000)),
 			"cust_ref_id":               fmt.Sprintf("%d", 100000000000000+rand.Int63n(900000000000000)),

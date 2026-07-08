@@ -180,7 +180,9 @@ func cmdFinalize(args []string) {
 			vals = append(vals, row[col]) // already SQL-formatted
 		}
 		sqlRowsVals = append(sqlRowsVals, fmt.Sprintf("(%s)", strings.Join(vals, ", ")))
-		deleteStmts = append(deleteStmts, fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"ref_id\" = '%s';", tableName, ref))
+		// row["ref_id"] is already SQL-formatted (quoted); it's the main table's own ref_id,
+		// which is independent of sharedRef now that void.ref_id is decoupled from it.
+		deleteStmts = append(deleteStmts, fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"ref_id\" = %s;", tableName, row["ref_id"]))
 
 		if rowVoid, ok := state.SqlRowsVoid[ref]; ok {
 			var valsVoid []string
