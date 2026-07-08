@@ -35,11 +35,16 @@ var cases = []map[string]string{
 }
 
 // sqlFormat converts interface{} values to pre-formatted SQL strings.
+// rawSQLExpr is emitted verbatim by sqlFormat (no quoting), for subqueries etc.
+type rawSQLExpr string
+
 func sqlFormat(val interface{}) string {
 	if val == nil {
 		return "NULL"
 	}
 	switch v := val.(type) {
+	case rawSQLExpr:
+		return string(v)
 	case string:
 		if v == "NULL" || v == "" {
 			return "NULL"
@@ -259,7 +264,12 @@ func cmdGenerate(args []string) {
 		)
 		refIdVoid := newUUIDv7()
 		sqlValsVoidRaw := map[string]interface{}{
-			"transaction_id":        1000000 + rand.Int63n(9000000),
+			// bill_payment_transaction.seq_id is a DB-generated serial, unknown at generation
+			// time, so resolve it via subquery on the shared retrieval_ref_no at insert time.
+			"transaction_id": rawSQLExpr(fmt.Sprintf(
+				`(SELECT "seq_id" FROM "public"."bill_payment_transaction" WHERE "retrieval_ref_no" = %s)`,
+				sqlFormat(sqlValsRaw["retrieval_ref_no"]),
+			)),
 			"transaction_code":      "MLDBPSCV",
 			"retrieval_ref_no":      sqlValsRaw["retrieval_ref_no"], // links back to bill_payment_transaction
 			"retrieval_ref_no_void": retrievalRefNoVoid,
