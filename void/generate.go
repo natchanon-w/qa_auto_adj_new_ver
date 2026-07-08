@@ -295,7 +295,7 @@ func cmdGenerate(args []string) {
 			"create_request_id":     refIdVoid,
 			"tfr_dtm":               recordDtm,
 			"instruction_id_void":   instructionIdVoid,
-			"ref_id":                refIdVoid,
+			"ref_id":                sharedRef,
 		}
 		sqlValsVoid := make(map[string]string)
 		for _, col := range sqlColumnsVoid {
