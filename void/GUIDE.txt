@@ -76,13 +76,18 @@ STEP 2 — Finalize (encrypt + verify)
     - VOID_ITMX_BILLERS_RECONCILE_UNMATCHED_<date>.csv.encrypted
     - reconcile-lending-void_itmx_billers-<uuid>.json
     - insert_void_transactions.sql
-        IMPORTANT: this single file contains 2 sub-scripts, stacked
-        back to back — run/copy both:
+        Wrapped in a single BEGIN;/COMMIT; transaction and contains
+        2 sub-scripts, stacked back to back — run the whole file:
           1) INSERT statements for bill_payment_transaction
           2) INSERT statements for bill_payment_transaction_void
+             (transaction_id is resolved via a subquery against
+             bill_payment_transaction's retrieval_ref_no, so if
+             part 1 fails or is skipped, the transaction aborts
+             instead of leaving void rows with bad data)
     - delete_void_transactions.sql
-        Also contains 2 sub-scripts, in this order (void first,
-        since it references the main table's retrieval_ref_no):
+        Also wrapped in BEGIN;/COMMIT; and contains 2 sub-scripts,
+        in this order (void first, since it references the main
+        table's retrieval_ref_no):
           1) DELETE statements for bill_payment_transaction_void
              (by retrieval_ref_no)
           2) DELETE statements for bill_payment_transaction

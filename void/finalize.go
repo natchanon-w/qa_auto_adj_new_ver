@@ -194,6 +194,11 @@ func cmdFinalize(args []string) {
 	}
 
 	fSql, _ := os.Create(sqlPath)
+	// Wrapped in a single transaction: bill_payment_transaction_void.transaction_id is
+	// resolved via a subquery against bill_payment_transaction (see generate.go), so if the
+	// main insert fails or is skipped, this aborts the whole batch instead of the void insert
+	// silently writing NULL and failing its own not-null constraint.
+	fSql.WriteString("BEGIN;\n")
 	for i := 0; i < len(sqlRowsVals); i += batchSize {
 		end := i + batchSize
 		if end > len(sqlRowsVals) {
@@ -208,12 +213,15 @@ func cmdFinalize(args []string) {
 		}
 		fSql.WriteString(insertHeaderVoid + strings.Join(sqlRowsValsVoid[i:end], ",\n") + ";\n")
 	}
+	fSql.WriteString("COMMIT;\n")
 	fSql.Close()
 
 	fDel, _ := os.Create(deleteSqlPath)
+	fDel.WriteString("BEGIN;\n")
 	// void rows reference the main table via ref_id, so delete them first
 	fDel.WriteString(strings.Join(deleteStmtsVoid, "\n") + "\n")
 	fDel.WriteString(strings.Join(deleteStmts, "\n") + "\n")
+	fDel.WriteString("COMMIT;\n")
 	fDel.Close()
 
 	fmt.Printf("\nOutput → %s\n", outputDir)
