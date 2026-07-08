@@ -5,7 +5,10 @@
 OVERVIEW
 --------
 This tool generates encrypted CSV test data for the
-Disburse-to-BA reconcile pipeline, then uploads it to S3.
+Void ITMX Billers reconcile pipeline, then uploads it to S3.
+It also produces SQL to seed matching rows in both
+bill_payment_transaction and bill_payment_transaction_void
+so the void flow can be exercised end-to-end.
 
 REQUIREMENTS
 ------------
@@ -21,12 +24,14 @@ Edit config.json before running:
 
   {
     "bucket":      "vb-payment-sit-s3-reconcile",
-    "base_path":   "dp/adjustment/dis_to_ba/2026-01-11/",
+    "base_path":   "dp/adjustment/void/2026-01-10/",
     "aws_profile": "s3_sit_vb"
   }
 
   - bucket      : S3 bucket name
-  - base_path   : S3 folder path (the date in the path sets the CSV filename date)
+  - base_path   : S3 folder path (the date in the path sets the CSV
+                  filename date AND backdates every generated
+                  timestamp field to that date)
   - aws_profile : AWS CLI profile name from ~/.aws/credentials
 
 
@@ -39,6 +44,14 @@ STEP 1 — Generate test data
 
   Example (generate 5 records):
     go run . generate 5
+
+  What it does:
+    - Builds CSV rows for the reconcile file
+    - Builds a matching bill_payment_transaction row per record
+    - Builds a linked bill_payment_transaction_void row per record
+      (status defaults to FAILED), joined via retrieval_ref_no
+    - All record date/time fields are backdated to a random time
+      on the date taken from base_path in config.json
 
   Output:
     - work/<timestamp>/raw.csv      (editable plain CSV)
@@ -56,13 +69,24 @@ STEP 2 — Finalize (encrypt + verify)
     - Reads raw.csv from the latest work folder
     - Encrypts CSV using public.pgp
     - Verifies the encryption using private.pgp (SHA256 checksum)
-    - Generates control JSON and SQL insert/delete scripts
+    - Generates control JSON and SQL insert/delete scripts for
+      both bill_payment_transaction and bill_payment_transaction_void
 
   Output (inside work/<timestamp>/output/):
-    - DISBURSE_TO_BA_RECONCILE_UNMATCHED_<date>.csv.encrypted
-    - reconcile-lending-disburse_to_ba-<uuid>.json
-    - insert_disburse_to_transactions.sql
-    - delete_disburse_to_transactions.sql
+    - VOID_ITMX_BILLERS_RECONCILE_UNMATCHED_<date>.csv.encrypted
+    - reconcile-lending-void_itmx_billers-<uuid>.json
+    - insert_void_transactions.sql
+        IMPORTANT: this single file contains 2 sub-scripts, stacked
+        back to back — run/copy both:
+          1) INSERT statements for bill_payment_transaction
+          2) INSERT statements for bill_payment_transaction_void
+    - delete_void_transactions.sql
+        Also contains 2 sub-scripts, in this order (void first,
+        since it references the main table's retrieval_ref_no):
+          1) DELETE statements for bill_payment_transaction_void
+             (by retrieval_ref_no)
+          2) DELETE statements for bill_payment_transaction
+             (by ref_id)
 
 
 STEP 3 — Upload to S3
@@ -95,17 +119,27 @@ If you need to finalize or upload a specific work folder
 
 NOTES
 -----
-- The date in the encrypted CSV filename is taken from
-  base_path in config.json, NOT from today's date.
+- The date in the encrypted CSV filename, and every backdated
+  timestamp field in the SQL rows, is taken from base_path in
+  config.json, NOT from today's date.
 
   Example:
-    config.json base_path : "dp/adjustment/dis_to_ba/2026-01-11/"
-    Output filename       : DISBURSE_TO_BA_RECONCILE_UNMATCHED_20260111.csv.encrypted
+    config.json base_path : "dp/adjustment/void/2026-01-10/"
+    Output filename       : VOID_ITMX_BILLERS_RECONCILE_UNMATCHED_20260110.csv.encrypted
 
-  To change the filename date, update the date segment in base_path.
+  To change the filename/backdate date, update the date segment
+  in base_path.
 
 - Each time you run upload, the S3 folder is wiped first,
   so only the latest generated files will be present.
 
-- SQL files are for inserting/deleting test records in the
-  bill_payment_transaction table (run manually in DB as needed).
+- SQL files seed/clean up test records in both the
+  bill_payment_transaction and bill_payment_transaction_void
+  tables (run manually in DB as needed). Each generated void
+  row links back to its main transaction row via
+  retrieval_ref_no and defaults status to FAILED.
+
+- insert_void_transactions.sql and delete_void_transactions.sql
+  each bundle 2 sub-scripts (one per table) in a single file —
+  when running manually, make sure to execute both parts, not
+  just the first block.
