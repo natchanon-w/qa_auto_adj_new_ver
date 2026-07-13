@@ -1,0 +1,203 @@
+========================================================
+  QA GUIDE: banking_agent - Test Data Generator & Uploader
+========================================================
+
+OVERVIEW
+--------
+This tool generates encrypted CSV test data for the
+payment-bulk-adj-banking-agent-processor reconcile pipeline,
+then uploads it to S3.
+
+It supports TWO input file types, distinguished by file
+name prefix and control JSON:
+
+  regular  ->  BANKING_AGENT_RECONCILE_AUTO_ADJUST_<date>.csv
+  copay    ->  BANKING_AGENT_COPAY_RECONCILE_AUTO_ADJUST_<date>.csv
+
+Each `generate` run produces one file type into its own
+work/<timestamp>_<type> folder (`generate ... regular` or
+`generate ... copay`), or BOTH types at once, each into its
+own folder, via `generate ... all`. To test a batch containing
+BOTH a regular file and a copay file (the processor discovers
+all control JSON files under the batch's S3 base_path in a
+single listing pass), finalize each type separately, then
+upload both work folders' output/ to S3 before running the
+batch — see "TESTING BOTH FILE TYPES" below.
+
+REQUIREMENTS
+------------
+- Go 1.21+  (run: go version)
+- AWS CLI   (run: aws --version)
+- AWS profile configured in ~/.aws/credentials
+- public.pgp and private.pgp must be present in this folder
+
+
+CONFIGURATION
+-------------
+config.json holds one entry per S3 environment under
+"environments", plus "active_env" to pick which one is used
+by generate/finalize/upload:
+
+  {
+    "active_env": "sit",
+    "environments": {
+      "sit": {
+        "bucket":      "vb-payment-sit-s3-reconcile",
+        "base_path":   "dp/adjustment/banking-agent/2026-01-10/",
+        "aws_profile": "s3_sit_vb"
+      },
+      "uat": {
+        "bucket":      "cb-core-bank-th-uat-s3-payment-reconcile",
+        "base_path":   "dp/adjustment/banking-agent/2026-01-20/",
+        "aws_profile": "s3-cb-uat-th-dpp"
+      }
+    }
+  }
+
+  - active_env  : name of the environment to use (must match a
+                  key under "environments", e.g. "sit" or "uat")
+  - bucket      : S3 bucket name
+  - base_path   : S3 folder path (the date in the path sets the CSV filename date)
+  - aws_profile : AWS CLI profile name from ~/.aws/credentials
+
+To switch environments (e.g. sit → uat), just change
+"active_env" — no code changes needed. You can add more
+environments by adding more entries under "environments".
+
+
+STEPS
+-----
+
+STEP 1 — Generate test data
+  Command:
+    go run . generate <number-of-records> [type]
+
+    type : regular (default) | copay | all
+
+  Examples:
+    go run . generate 5              # regular banking-agent file
+    go run . generate 5 copay        # copay file
+    go run . generate 5 all          # both regular AND copay in one command,
+                                      # each into its own work/<timestamp>_<type> dir
+
+  Output:
+    - work/<timestamp>_<type>/raw.csv      (editable plain CSV)
+    - work/<timestamp>_<type>/state.json   (internal state, do not edit — remembers the type)
+
+  `all` runs regular and copay generation back-to-back and
+  prints both work dir paths plus the exact finalize/upload
+  commands to run next for each — see "TESTING BOTH FILE TYPES
+  IN ONE BATCH" below (which `all` is just a shortcut for).
+
+  Tip: You can open and edit raw.csv before running finalize
+       if you need to adjust specific field values.
+
+
+STEP 2 — Finalize (encrypt + verify)
+  Command:
+    go run . finalize
+
+  What it does:
+    - Reads raw.csv from the latest work folder
+    - Encrypts CSV using public.pgp
+    - Verifies the encryption using private.pgp (SHA256 checksum)
+    - Generates control JSON and SQL insert/delete scripts
+    - Picks filenames based on the type recorded in state.json
+
+  Output (inside work/<timestamp>/output/):
+    regular:
+      - BANKING_AGENT_RECONCILE_AUTO_ADJUST_<date>.csv.encrypted
+      - reconcile-spending-banking_agent_auto_adjust-<uuid>.json
+    copay:
+      - BANKING_AGENT_COPAY_RECONCILE_AUTO_ADJUST_<date>.csv.encrypted
+      - reconcile-spending-banking_agent_copay_auto_adjust-<uuid>.json
+    both:
+      - insert_banking_agent_transactions.sql
+      - delete_banking_agent_transactions.sql
+
+
+STEP 3 — Upload to S3
+  Command:
+    go run . upload [dir] [--keep]
+
+  What it does:
+    - Cleans all existing files in the S3 base_path folder
+      (unless --keep is passed, which skips the clean step)
+    - Uploads .encrypted and .json files to S3
+
+  Target:
+    s3://<bucket>/<base_path>/
+
+  WARNING: without --keep, upload wipes the whole base_path
+  folder first. If you are testing both file types in one
+  batch, finalize both work folders, then upload the first
+  normally and the second with --keep — see below.
+
+
+FULL EXAMPLE (single file type)
+--------------------------------
+  go run . generate 5
+  go run . finalize
+  go run . upload
+
+
+TESTING BOTH FILE TYPES IN ONE BATCH
+-------------------------------------
+The processor lists every control JSON under base_path in one
+pass, so a single batch can contain one regular file and one
+copay file together.
+
+Shortcut — one command generates both:
+
+  go run . generate 5 all
+  # -> work/<ts>_regular/  and  work/<ts>_copay/
+  # prints the exact finalize/upload commands for each dir
+
+  go run . finalize work/<ts>_regular
+  go run . upload   work/<ts>_regular          # cleans base_path, uploads regular file
+  go run . finalize work/<ts>_copay
+  go run . upload   work/<ts>_copay --keep     # uploads copay file WITHOUT wiping the regular one
+
+Equivalent, done manually as two separate generate runs:
+
+  go run . generate 5              # regular
+  go run . finalize                # -> work/<ts1>_regular/output/
+  go run . upload                  # cleans base_path, uploads regular file
+
+  go run . generate 3 copay        # copay
+  go run . finalize                # -> work/<ts2>_copay/output/
+  go run . upload --keep           # uploads copay file WITHOUT wiping the regular one
+
+  # base_path now has both:
+  #   BANKING_AGENT_RECONCILE_AUTO_ADJUST_<date>.csv.encrypted + control json
+  #   BANKING_AGENT_COPAY_RECONCILE_AUTO_ADJUST_<date>.csv.encrypted + control json
+
+
+WORKING WITH A SPECIFIC FOLDER
+-------------------------------
+If you need to finalize or upload a specific work folder
+(not the latest), pass the folder path as an argument:
+
+  go run . finalize work/20260617_131102
+  go run . upload   work/20260617_131102
+
+
+NOTES
+-----
+- The date in the encrypted CSV filename is taken from
+  base_path in config.json, NOT from today's date.
+
+  Example:
+    config.json base_path : "dp/adjustment/banking-agent/2026-01-10/"
+    regular output         : BANKING_AGENT_RECONCILE_AUTO_ADJUST_20260110.csv.encrypted
+    copay output            : BANKING_AGENT_COPAY_RECONCILE_AUTO_ADJUST_20260110.csv.encrypted
+
+  To change the filename date, update the date segment in base_path.
+
+- Each time you run `upload` without --keep, the S3 folder is
+  wiped first, so only the latest generated files will be
+  present. Use --keep to layer a second file type on top —
+  see "TESTING BOTH FILE TYPES IN ONE BATCH" above.
+
+- SQL files are for inserting/deleting test records in the
+  bill_payment_transaction table (run manually in DB as needed).
