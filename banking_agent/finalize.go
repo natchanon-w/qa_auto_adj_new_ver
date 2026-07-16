@@ -15,8 +15,16 @@ import (
 const maxRowsPerFile = 100000
 
 func cmdFinalize(args []string) {
-	workDir := resolveWorkDir(args)
+	workDirs := resolveWorkDirs(args)
+	for i, workDir := range workDirs {
+		if len(workDirs) > 1 {
+			fmt.Printf("=== [%d/%d] Finalizing %s ===\n", i+1, len(workDirs), workDir)
+		}
+		finalizeOne(workDir)
+	}
+}
 
+func finalizeOne(workDir string) {
 	stateBytes, err := os.ReadFile(filepath.Join(workDir, "state.json"))
 	if err != nil {
 		fmt.Printf("Error reading state.json: %v\n", err)

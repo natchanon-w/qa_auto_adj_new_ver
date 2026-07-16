@@ -98,11 +98,16 @@ STEP 2 — Finalize (encrypt + verify)
     go run . finalize
 
   What it does:
-    - Reads raw.csv from the latest work folder
+    - Reads raw.csv from the latest work folder(s)
     - Encrypts CSV using public.pgp
     - Verifies the encryption using private.pgp (SHA256 checksum)
     - Generates control JSON and SQL insert/delete scripts
     - Picks filenames based on the type recorded in state.json
+
+  If the last `generate` was `all`, `.latest` remembers BOTH
+  work dirs, so bare `go run . finalize` finalizes both the
+  regular and copay folders in one go (no need to pass either
+  dir explicitly).
 
   Output (inside work/<timestamp>/output/):
     regular:
@@ -119,19 +124,26 @@ STEP 2 — Finalize (encrypt + verify)
 STEP 3 — Upload to S3
   Command:
     go run . upload [dir] [--keep]
+    go run . upload all   [--keep]
 
   What it does:
     - Cleans all existing files in the S3 base_path folder
       (unless --keep is passed, which skips the clean step)
     - Uploads .encrypted and .json files to S3
+    - `upload all` uploads every work dir recorded in .latest
+      (both regular and copay after 'generate ... all'):
+      wipes base_path once for the first dir, then uploads the
+      rest with --keep automatically so they layer instead of
+      wiping each other
 
   Target:
     s3://<bucket>/<base_path>/
 
   WARNING: without --keep, upload wipes the whole base_path
   folder first. If you are testing both file types in one
-  batch, finalize both work folders, then upload the first
-  normally and the second with --keep — see below.
+  batch, finalize both work folders, then either run
+  `upload all`, or upload the first normally and the second
+  with --keep — see below.
 
 
 FULL EXAMPLE (single file type)
@@ -151,11 +163,13 @@ Shortcut — one command generates both:
 
   go run . generate 5 all
   # -> work/<ts>_regular/  and  work/<ts>_copay/
-  # prints the exact finalize/upload commands for each dir
+  # .latest now remembers both dirs; prints the upload commands for each
 
-  go run . finalize work/<ts>_regular
+  go run . finalize                            # finalizes BOTH work/<ts>_regular and work/<ts>_copay
+  go run . upload all                          # cleans base_path once, uploads both files
+
+  # ...or upload each manually:
   go run . upload   work/<ts>_regular          # cleans base_path, uploads regular file
-  go run . finalize work/<ts>_copay
   go run . upload   work/<ts>_copay --keep     # uploads copay file WITHOUT wiping the regular one
 
 Equivalent, done manually as two separate generate runs:

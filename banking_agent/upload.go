@@ -9,17 +9,32 @@ import (
 )
 
 func cmdUpload(args []string) {
-	var keep bool
+	var keepFlag bool
 	var positional []string
 	for _, a := range args {
 		if a == "--keep" {
-			keep = true
+			keepFlag = true
 			continue
 		}
 		positional = append(positional, a)
 	}
 
-	workDir := resolveWorkDir(positional)
+	if len(positional) > 0 && positional[0] == "all" {
+		workDirs := resolveWorkDirs(nil)
+		for i, workDir := range workDirs {
+			keep := keepFlag || i > 0
+			if len(workDirs) > 1 {
+				fmt.Printf("=== [%d/%d] Uploading %s (keep=%v) ===\n", i+1, len(workDirs), workDir, keep)
+			}
+			uploadOne(workDir, keep)
+		}
+		return
+	}
+
+	uploadOne(resolveWorkDir(positional), keepFlag)
+}
+
+func uploadOne(workDir string, keep bool) {
 	cfg := readConfig()
 
 	outputDir := filepath.Join(workDir, "output")

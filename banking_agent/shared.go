@@ -107,6 +107,32 @@ func resolveWorkDir(args []string) string {
 	return filepath.Join(baseDir(), "work", name)
 }
 
+// resolveWorkDirs returns every work dir to act on: the explicit arg if given,
+// or every line recorded in .latest (generate ... all records one line per type).
+func resolveWorkDirs(args []string) []string {
+	if len(args) > 0 {
+		return []string{args[0]}
+	}
+	latestPath := filepath.Join(baseDir(), ".latest")
+	data, err := os.ReadFile(latestPath)
+	if err != nil {
+		fmt.Println("No .latest file found. Run 'generate' first or pass a work dir explicitly.")
+		os.Exit(1)
+	}
+	var dirs []string
+	for _, line := range strings.Split(string(data), "\n") {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			dirs = append(dirs, filepath.Join(baseDir(), "work", name))
+		}
+	}
+	if len(dirs) == 0 {
+		fmt.Println(".latest file is empty. Run 'generate' first or pass a work dir explicitly.")
+		os.Exit(1)
+	}
+	return dirs
+}
+
 func sha256File(path string) string {
 	f, err := os.Open(path)
 	if err != nil {

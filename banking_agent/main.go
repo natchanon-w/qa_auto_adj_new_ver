@@ -14,10 +14,15 @@ func main() {
 		fmt.Println("                           type: regular (default) | copay | all")
 		fmt.Println("                           all generates both types, each into its own work dir")
 		fmt.Println("  finalize [dir]           Encrypt, verify, build control JSON and SQL scripts")
+		fmt.Println("                           no dir: finalizes every work dir recorded in .latest")
+		fmt.Println("                           (both regular and copay after 'generate ... all')")
 		fmt.Println("  upload   [dir] [--keep]  Upload output files to S3 (reads config.json)")
 		fmt.Println("                           --keep skips wiping base_path first —")
 		fmt.Println("                           use it to add a second file type (e.g. copay)")
 		fmt.Println("                           alongside one already uploaded")
+		fmt.Println("  upload   all   [--keep]  Upload every work dir recorded in .latest —")
+		fmt.Println("                           wipes base_path once for the first dir, then")
+		fmt.Println("                           layers the rest on top with --keep automatically")
 		os.Exit(1)
 	}
 

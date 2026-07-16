@@ -78,19 +78,20 @@ func cmdGenerate(args []string) {
 	if fileType == "all" {
 		regularDir := generateOne(times, "regular", false)
 		copayDir := generateOne(times, "copay", false)
+		latest := filepath.Base(regularDir) + "\n" + filepath.Base(copayDir) + "\n"
+		os.WriteFile(filepath.Join(baseDir(), ".latest"), []byte(latest), 0644)
 		fmt.Println("Generated both file types:")
 		fmt.Printf("  regular : %s\n", regularDir)
 		fmt.Printf("  copay   : %s\n", copayDir)
 		fmt.Println()
-		fmt.Println("Finalize + upload each work dir separately:")
-		fmt.Printf("  go run . finalize %s\n", regularDir)
-		fmt.Printf("  go run . upload   %s\n", regularDir)
-		fmt.Printf("  go run . finalize %s\n", copayDir)
-		fmt.Printf("  go run . upload   %s --keep\n", copayDir)
+		fmt.Println("Run 'go run . finalize' to finalize both, then upload each separately:")
+		fmt.Printf("  go run . upload %s\n", regularDir)
+		fmt.Printf("  go run . upload %s --keep\n", copayDir)
 		return
 	}
 
-	generateOne(times, fileType, true)
+	workDir := generateOne(times, fileType, true)
+	os.WriteFile(filepath.Join(baseDir(), ".latest"), []byte(filepath.Base(workDir)+"\n"), 0644)
 }
 
 func generateOne(times int, fileType string, printHint bool) string {
@@ -292,7 +293,6 @@ func generateOne(times int, fileType string, printHint bool) string {
 	}
 	stateBytes, _ := json.MarshalIndent(state, "", "  ")
 	os.WriteFile(filepath.Join(workDir, "state.json"), stateBytes, 0644)
-	os.WriteFile(filepath.Join(baseDir(), ".latest"), []byte(timestamp), 0644)
 
 	fmt.Printf("Generated %d record(s) [%s]\n", len(csvRows), fileType)
 	fmt.Printf("Work dir : %s\n", workDir)
