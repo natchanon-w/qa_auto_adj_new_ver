@@ -1,0 +1,99 @@
+========================================================
+  QA GUIDE: transfer_onus - Test Data Generator & Uploader
+========================================================
+
+OVERVIEW
+--------
+This tool generates encrypted CSV test data for the
+payment-bulk-adj-transfer-onus-processor reconcile pipeline,
+then uploads it to S3.
+
+Single file type:
+  TRANSFER_ON_US_RECONCILE_AUTO_ADJUST_<date>.csv
+
+Unlike cardless-deposit and transfer-offus, the
+transfer-onus-processor repo has NO local-scripts folder at all —
+no existing generator, no example files, no source-table SQL to
+crib from. This tool's CSV schema and control-JSON format were
+verified against a REAL production control-JSON download
+(mywork/AUTO-ADJ-KNOLEDGE-AND-SUPPORT/get-s3-and-summary/downloads/
+2026-07-13/transfer-on-us/...json), which matched the Go struct
+field-for-field. The source SQL table "internal_transfer_transactions"
+was supplied directly (its schema isn't derivable from this repo or
+any local example file) — verify against the current schema before
+relying on it if the table has since changed.
+
+
+REQUIREMENTS
+------------
+- Go 1.21+  (run: go version)
+- AWS CLI   (run: aws --version)
+- AWS profile configured in ~/.aws/credentials
+- public.pgp and private.pgp must be present in this folder
+
+
+CONFIGURATION
+-------------
+  {
+    "active_env": "sit",
+    "environments": {
+      "sit": {
+        "bucket":      "vb-payment-sit-s3-reconcile",
+        "base_path":   "dp/adjustment/transfer-onus/2026-01-10/",
+        "aws_profile": "s3-sit-vb"
+      }
+    }
+  }
+
+
+STEPS
+-----
+
+STEP 1 — Generate test data
+  Command:
+    go run . generate <number-of-records>
+
+  Output:
+    - work/<timestamp>/raw.csv      (editable plain CSV)
+    - work/<timestamp>/state.json   (internal state, do not edit)
+
+
+STEP 2 — Finalize (encrypt + verify)
+  Command:
+    go run . finalize
+
+  Output (inside work/<timestamp>/output/):
+    - TRANSFER_ON_US_RECONCILE_AUTO_ADJUST_<date>.csv.encrypted
+    - reconcile-spending-transfer_on_us_auto_adjust-<uuid>.json
+    - insert_transfer_onus_transactions.sql
+    - update_transfer_onus_transactions.sql
+    - delete_transfer_onus_transactions.sql
+
+
+STEP 3 — Upload to S3
+  Command:
+    go run . upload [dir] [--keep]
+
+  Target:
+    s3://<bucket>/<base_path>/
+
+
+FULL EXAMPLE
+------------
+  go run . generate 5
+  go run . finalize
+  go run . upload
+
+
+NOTES
+-----
+- Both legs of an on-us transfer are the same bank (KTB, code "006"),
+  unlike transfer-offus which crosses banks — from_bank_code and
+  to_bank_code are both hardcoded "006".
+- SQL targets "internal_transfer_transactions":
+    - insert : seeds fresh fake source rows linked by ref_id
+    - update : resets status back to PROCESSING for existing rows
+               by ref_id
+    - delete : removes the seeded rows by ref_id
+- retrieval_ref_no has a UNIQUE constraint on this table — generated
+  as <timestamp><6-digit-index> to stay unique within and across runs.

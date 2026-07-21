@@ -1,0 +1,126 @@
+========================================================
+  QA GUIDE: cardless_deposit - Test Data Generator & Uploader
+========================================================
+
+OVERVIEW
+--------
+This tool generates encrypted CSV test data for the
+payment-bulk-adj-cardless-deposit-processor reconcile pipeline,
+then uploads it to S3.
+
+Single file type only:
+  CARDLESS_RECONCILE_AUTO_ADJUST_<date>.csv
+
+Control JSON follows the REAL production reconcile-spending
+format (verified against actual S3 downloads), NOT the stale
+format still emitted by the processor repo's own
+local-scripts/generate_test_data.go:
+
+  dataset             : "spending"   (script had "VFS-DCB")
+  table               : "cardless_auto_adjust" (script had "sams_vfs_dcb")
+  check_sum_algorithm  : "sha256"     (script had "md5")
+  format.compression   : "PGP"        (script had "")
+
+REQUIREMENTS
+------------
+- Go 1.21+  (run: go version)
+- AWS CLI   (run: aws --version)
+- AWS profile configured in ~/.aws/credentials
+- public.pgp and private.pgp must be present in this folder
+
+
+CONFIGURATION
+-------------
+config.json holds one entry per S3 environment under
+"environments", plus "active_env" to pick which one is used
+by generate/finalize/upload:
+
+  {
+    "active_env": "sit",
+    "environments": {
+      "sit": {
+        "bucket":      "vb-payment-sit-s3-reconcile",
+        "base_path":   "dp/adjustment/cardless-deposit/2026-01-10/",
+        "aws_profile": "s3-sit-vb"
+      }
+    }
+  }
+
+  - active_env  : name of the environment to use
+  - bucket      : S3 bucket name
+  - base_path   : S3 folder path (the date in the path sets the CSV filename date)
+  - aws_profile : AWS CLI profile name from ~/.aws/credentials
+
+
+STEPS
+-----
+
+STEP 1 — Generate test data
+  Command:
+    go run . generate <number-of-records>
+
+  Output:
+    - work/<timestamp>/raw.csv      (editable plain CSV)
+    - work/<timestamp>/state.json   (internal state, do not edit)
+
+  Tip: You can open and edit raw.csv before running finalize
+       if you need to adjust specific field values.
+
+
+STEP 2 — Finalize (encrypt + verify)
+  Command:
+    go run . finalize
+
+  What it does:
+    - Reads raw.csv from the latest work folder
+    - Encrypts CSV using public.pgp
+    - Verifies the encryption using private.pgp (SHA256 checksum)
+    - Generates control JSON and SQL insert/update/delete scripts
+
+  Output (inside work/<timestamp>/output/):
+    - CARDLESS_RECONCILE_AUTO_ADJUST_<date>.csv.encrypted
+    - reconcile-spending-cardless_auto_adjust-<uuid>.json
+    - insert_cardless_deposit_transactions.sql
+    - update_cardless_deposit_transactions.sql
+    - delete_cardless_deposit_transactions.sql
+
+
+STEP 3 — Upload to S3
+  Command:
+    go run . upload [dir] [--keep]
+
+  What it does:
+    - Cleans all existing files in the S3 base_path folder
+      (unless --keep is passed)
+    - Uploads .encrypted and .json files to S3
+
+  Target:
+    s3://<bucket>/<base_path>/
+
+
+FULL EXAMPLE
+------------
+  go run . generate 5
+  go run . finalize
+  go run . upload
+
+
+WORKING WITH A SPECIFIC FOLDER
+-------------------------------
+  go run . finalize work/20260617_131102
+  go run . upload   work/20260617_131102
+
+
+NOTES
+-----
+- The date in the encrypted CSV filename is taken from
+  base_path in config.json, NOT from today's date.
+
+- SQL files are for the source table "cardless_deposit_transactions"
+  (run manually in DB as needed):
+    - insert : seeds fresh fake source rows linked by req_ref_id
+    - update : resets transaction_status back to PROCESSING for
+               existing rows by req_ref_id (use when re-triggering
+               adjustment against rows you already inserted, instead
+               of inserting new ones)
+    - delete : removes the seeded rows by req_ref_id

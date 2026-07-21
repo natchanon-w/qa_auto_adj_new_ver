@@ -1,0 +1,10 @@
+{
+  "active_env": "sit",
+  "environments": {
+    "sit": {
+      "bucket": "vb-payment-sit-s3-reconcile",
+      "base_path": "dp/adjustment/transfer-onus/2026-01-10/",
+      "aws_profile": "s3-sit-vb"
+    }
+  }
+}

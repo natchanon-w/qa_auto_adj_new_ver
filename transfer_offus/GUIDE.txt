@@ -1,0 +1,147 @@
+========================================================
+  QA GUIDE: transfer_offus - Test Data Generator & Uploader
+========================================================
+
+OVERVIEW
+--------
+This tool generates encrypted CSV test data for the
+payment-bulk-adj-transfer-offus-processor reconcile pipeline,
+then uploads it to S3.
+
+A real off-us reconcile batch bundles up to 4 file variants
+together (the processor lists every control JSON under
+base_path in one pass):
+
+  inbound_promptpay        -> TRANSFER_OFF_US_INBOUND_PROMPTPAY_RECONCILE_AUTO_ADJUST_<date>.csv
+  inbound_actual_account   -> TRANSFER_OFF_US_INBOUND_ACTUAL_ACCOUNT_RECONCILE_AUTO_ADJUST_<date>.csv
+  outbound_promptpay       -> TRANSFER_OFF_US_OUTBOUND_PROMPTPAY_RECONCILE_AUTO_ADJUST_<date>.csv
+  outbound_actual_account  -> TRANSFER_OFF_US_OUTBOUND_ACTUAL_ACCOUNT_RECONCILE_AUTO_ADJUST_<date>.csv
+
+By default `generate` produces all four into ONE work dir
+(matching a real batch); pass a comma-separated subset to
+generate only some of them.
+
+Each variant posts to a different source table:
+  inbound_promptpay        -> credit_transfer_inbound        (ref: ctfi_tfr_ref_no, status: ctfi_status)
+  inbound_actual_account   -> actual_credit_transfer_inbound  (ref: acti_tfr_ref_no, status: acti_status)
+  outbound_promptpay       -> credit_transfer                 (ref: ref_id, status: status)
+  outbound_actual_account  -> actual_credit_transfer           (ref: ref_id, status: status)
+
+
+KNOWN ISSUES FOUND WHILE BUILDING THIS TOOL (read before debugging "why didn't
+my test file get classified")
+----------------------------------------------------------------------------
+1. SPELLING: the processor's own code (app/batch/constants.go,
+   config.yaml's response_file_name_map) spells the promptpay prefix
+   "PROMTPAY" (missing a P). Real production files from upstream are
+   spelled correctly "PROMPTPAY". Confirmed still present as of the
+   processor repo's latest commit. This tool generates the CORRECT
+   "PROMPTPAY" spelling (matching real prod) — which means testing against
+   the current deployed processor will reproduce the live bug where
+   AdjustmentType comes out empty for promptpay files. If you need a
+   "clean" happy-path test against the current (buggy) code instead,
+   rename the generated files/control-json table refs from PROMPTPAY to
+   PROMTPAY before uploading.
+
+2. ENCRYPTION: real production files ARE PGP-encrypted (confirmed via S3
+   downloads — compression: "PGP", filenames end in .csv.encrypted). This
+   tool encrypts. The processor repo's own local-scripts/generate_test_data.py
+   does NOT encrypt (uploads plain .csv) — that still "works" against the
+   processor because decryption is skipped for filenames not ending in
+   ".encrypted", but it isn't representative of what real upstream sends.
+
+3. CONTROL JSON FORMAT: real production control JSON uses
+   dataset "spending", table "transfer_off_us_<type>_auto_adjust", sha256
+   checksum, compression "PGP" — different from the stale local script,
+   which uses dataset "VFS-DCB", sha256-but-empty-compression. This tool
+   matches the real format (verified against actual S3 downloads).
+
+4. UPLOAD PATH: uploads go to a "request/" subfolder under base_path
+   (s3://bucket/base_path/request/<file>), unlike cardless-deposit/
+   banking-agent which upload straight to base_path. This is baked into
+   config.json's base_path below — do not strip the trailing "request/".
+
+
+REQUIREMENTS
+------------
+- Go 1.21+  (run: go version)
+- AWS CLI   (run: aws --version)
+- AWS profile configured in ~/.aws/credentials
+- public.pgp and private.pgp must be present in this folder
+
+
+CONFIGURATION
+-------------
+  {
+    "active_env": "sit",
+    "environments": {
+      "sit": {
+        "bucket":      "vb-payment-sit-s3-reconcile",
+        "base_path":   "dp/adjustment/transfer-offus/2026-01-10/request/",
+        "aws_profile": "s3-sit-vb"
+      }
+    }
+  }
+
+  Note base_path ends in "request/" — see item 4 above.
+
+
+STEPS
+-----
+
+STEP 1 — Generate test data
+  Command:
+    go run . generate <records> [types]
+
+  Examples:
+    go run . generate 5                                  # all 4 types
+    go run . generate 5 outbound_promptpay                # just one
+    go run . generate 5 outbound_promptpay,inbound_promptpay
+
+  Output (work/<timestamp>/):
+    - raw_inbound_promptpay.csv        (only for selected types)
+    - raw_inbound_actual_account.csv
+    - raw_outbound_promptpay.csv
+    - raw_outbound_actual_account.csv
+    - state.json   (internal state, do not edit)
+
+  Tip: edit the raw_<type>.csv files before finalize if needed.
+
+
+STEP 2 — Finalize (encrypt + verify)
+  Command:
+    go run . finalize
+
+  What it does, per selected type:
+    - Encrypts the raw CSV using public.pgp
+    - Verifies using private.pgp (SHA256 checksum)
+    - Writes one control JSON per type
+
+  Then across all types:
+    - insert_transfer_offus_transactions.sql
+    - update_transfer_offus_transactions.sql
+    - delete_transfer_offus_transactions.sql
+    (each statement targets that row's own source table)
+
+
+STEP 3 — Upload to S3
+  Command:
+    go run . upload [dir] [--keep]
+
+  Target:
+    s3://<bucket>/<base_path>/   (base_path already includes "request/")
+
+
+FULL EXAMPLE
+------------
+  go run . generate 5
+  go run . finalize
+  go run . upload
+
+
+NOTES
+-----
+- The date in output filenames is taken from the first YYYY-MM-DD
+  segment found anywhere in base_path, NOT from today's date.
+- SQL files insert/update/delete against 4 different source tables
+  in one shared script — see the per-type table mapping above.
