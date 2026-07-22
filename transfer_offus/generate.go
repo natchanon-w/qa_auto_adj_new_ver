@@ -159,6 +159,7 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["acti_req_id"] = newUUIDv7()
 				sqlValsRaw["acti_from_acct_id"] = newUUIDv7()
 				sqlValsRaw["acti_to_acct_id"] = newUUIDv7()
+				sqlValsRaw["acti_sending_bank_rrn"] = fmt.Sprintf("%012d", rand.Int63n(1000000000000))
 			}
 
 			sqlVals := make(map[string]string)
