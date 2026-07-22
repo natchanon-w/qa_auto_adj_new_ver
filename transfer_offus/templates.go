@@ -107,9 +107,6 @@ var typeDefs = map[string]TypeDef{
 			"from_product_type": "SA01", "from_core_bank": "DCB", "from_pocket_no": nil,
 			"proc_cd": "481000", "transferee_fee": "0.00", "transferer_fee": "0.00",
 			"sender_fee": "0.00", "term_type": "80", "is_force_success": "",
-			"tepa_code": nil, "switch_fee_amt": nil, "to_bank_fee_amt": nil,
-			"customer_fee_amt": nil, "limit_fundout": nil, "remain_fundout_limit": nil,
-			"financial_txn_ref": nil,
 		},
 	},
 	"inbound_promptpay": {
@@ -142,7 +139,7 @@ var typeDefs = map[string]TypeDef{
 			"ctfi_to_account_type": "ACCOUNT", "ctfi_to_product_group": "SAV",
 			"ctfi_to_product_type": "SA01", "ctfi_to_core_bank": "DCB", "ctfi_to_branch_cd": nil,
 			"ctfi_posting_type": "INBOUND", "ctfi_to_acct_no": nil, "ctfi_eff_date": nil,
-			"ctfi_transfer_dtm": nil, "ctfi_to_pocket_no": nil, "ctfi_tepa_code": nil,
+			"ctfi_transfer_dtm": nil, "ctfi_to_pocket_no": nil,
 		},
 	},
 	"inbound_actual_account": {
@@ -216,9 +213,7 @@ func sqlColumnsFor(def TypeDef) []string {
 			"type_of_sender", "sender_tax_id", "to_bank_code", "to_account_no", "to_account_name",
 			"to_account_display_name", "type_of_receiver", "receiver_tax_id", "posting_type", "from_bank_code",
 			"from_product_group", "from_product_type", "from_core_bank", "from_pocket_no", "proc_cd",
-			"transferee_fee", "transferer_fee", "sender_fee", "term_type", "is_force_success", "tepa_code",
-			"switch_fee_amt", "to_bank_fee_amt", "customer_fee_amt", "limit_fundout", "remain_fundout_limit",
-			"financial_txn_ref",
+			"transferee_fee", "transferer_fee", "sender_fee", "term_type", "is_force_success",
 		}
 	case "inbound_promptpay":
 		return []string{
@@ -235,7 +230,7 @@ func sqlColumnsFor(def TypeDef) []string {
 			"ctfi_transaction_type", "ctfi_to_acct_bank_code", "ctfi_to_account_class",
 			"ctfi_to_account_group", "ctfi_to_account_type", "ctfi_to_product_group", "ctfi_to_product_type",
 			"ctfi_to_core_bank", "ctfi_to_branch_cd", "ctfi_posting_type", "ctfi_to_acct_no",
-			"ctfi_eff_date", "ctfi_transfer_dtm", "ctfi_to_pocket_no", "ctfi_tepa_code",
+			"ctfi_eff_date", "ctfi_transfer_dtm", "ctfi_to_pocket_no",
 		}
 	case "inbound_actual_account":
 		return []string{
