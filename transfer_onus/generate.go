@@ -90,7 +90,7 @@ func cmdGenerate(args []string) {
 	var sharedRefs []string
 
 	for t := 0; t < times; t++ {
-		sharedRef := newUUIDv7()
+		sharedRef := fmt.Sprintf("D%s%06d", now.Format("060102150405"), t)
 
 		vfsAmount := fmt.Sprintf("%d", 100+rand.Intn(4901))
 		dcbAmount := vfsAmount
@@ -135,13 +135,13 @@ func cmdGenerate(args []string) {
 		sqlValsRaw := map[string]interface{}{
 			"req_channel":               "VB",
 			"requester":                 "VB",
-			"ref_id":                    sharedRef,
+			"ref_id":                    newUUIDv7(),
 			"req_dtm":                   now.Format("2006-01-02 15:04:05"),
 			"retrieval_ref_no":          fmt.Sprintf("%s%06d", now.Format("060102150405"), t),
 			"pib_id":                    newUUIDv7(),
 			"created_request_id":        newUUIDv7(),
 			"amount":                    fmt.Sprintf("%s.00", vfsAmount),
-			"payment_txn_ref":           fmt.Sprintf("D%s%06d", now.Format("060102150405"), t),
+			"payment_txn_ref":           sharedRef,
 			"customer_note":             "Load Test",
 			"from_acct_no":              fmt.Sprintf("%010d", 1000000000+rand.Int63n(9000000000)),
 			"from_acct_id":              newUUIDv7(),

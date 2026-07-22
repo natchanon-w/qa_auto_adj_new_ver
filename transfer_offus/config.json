@@ -3,7 +3,7 @@
   "environments": {
     "sit": {
       "bucket": "vb-payment-sit-s3-reconcile",
-      "base_path": "dp/adjustment/transfer-offus/2026-01-10/request/",
+      "base_path": "dp/adjustment/transfer-off-us/2026-01-10/",
       "aws_profile": "s3-sit-vb"
     }
   }

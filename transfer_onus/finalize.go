@@ -183,7 +183,7 @@ func finalizeOne(workDir string) {
 			vals = append(vals, row[col])
 		}
 		sqlRowsVals = append(sqlRowsVals, fmt.Sprintf("(%s)", strings.Join(vals, ", ")))
-		quotedRefs = append(quotedRefs, fmt.Sprintf("'%s'", ref))
+		quotedRefs = append(quotedRefs, row["ref_id"])
 	}
 
 	fSql, _ := os.Create(sqlPath)
