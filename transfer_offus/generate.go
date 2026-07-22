@@ -147,6 +147,8 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["ctfi_req_id"] = newUUIDv7()
 				sqlValsRaw["ctfi_from_acct_id"] = fmt.Sprintf("%d", 1000000000+rand.Int63n(9000000000))
 				sqlValsRaw["ctfi_to_acct_id"] = newUUIDv7()
+				sqlValsRaw["ctfi_to_any_id"] = fmt.Sprintf("088987%09d", rand.Int63n(1000000000))
+				sqlValsRaw["ctfi_sending_bank_rrn"] = fmt.Sprintf("%012d", rand.Int63n(1000000000000))
 			case "inbound_actual_account":
 				sqlValsRaw["acti_seq_id"] = 60000000000000000 + rand.Int63n(9999999999999999)
 				sqlValsRaw["acti_req_dtm"] = now.Format("2006-01-02 15:04:05.000")
