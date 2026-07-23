@@ -82,7 +82,10 @@ func cmdGenerate(args []string) {
 		var sharedRefs []string
 
 		for t := 0; t < times; t++ {
-			sharedRef := newUUIDv7()
+				// 20-char reference: must fit varchar(20) and match across
+				// transaction_reference_id (CSV) and payment_txn_ref /
+				// ctfi_txn_ref_id / acti_txn_ref_id (SQL insert).
+				sharedRef := fmt.Sprintf("D%s%07d", now.Format("060102150405"), t)
 
 			csvRowMap := map[string]string{
 				"reconcile_status":         "VFS unmatch",
@@ -140,13 +143,14 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["from_account_no"] = fmt.Sprintf("%d", 1000000000+rand.Int63n(9000000000))
 				sqlValsRaw["from_account_id"] = newUUIDv7()
 				sqlValsRaw["to_any_id"] = fmt.Sprintf("088987%09d", rand.Int63n(1000000000))
+				sqlValsRaw["payment_txn_ref"] = sharedRef
 			case "inbound_promptpay":
 				sqlValsRaw["ctfi_seq_id"] = 60000000000000000 + rand.Int63n(9999999999999999)
 				sqlValsRaw["ctfi_req_dtm"] = now.Format("2006-01-02 15:04:05.000")
 				sqlValsRaw["ctfi_creat_dtm"] = now.Format("2006-01-02 15:04:05.000")
 				sqlValsRaw["ctfi_updat_dtm"] = now.Format("2006-01-02 15:04:05.000")
 				sqlValsRaw["ctfi_eff_date"] = now.Format("2006-01-02")
-				sqlValsRaw["ctfi_txn_ref_id"] = fmt.Sprintf("D%s%06d", now.Format("060102150405"), t)
+				sqlValsRaw["ctfi_txn_ref_id"] = sharedRef
 				sqlValsRaw["ctfi_req_id"] = newUUIDv7()
 				sqlValsRaw["ctfi_from_acct_id"] = fmt.Sprintf("%d", 1000000000+rand.Int63n(9000000000))
 				sqlValsRaw["ctfi_to_acct_id"] = newUUIDv7()
@@ -158,7 +162,7 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["acti_creat_dtm"] = now.Format("2006-01-02 15:04:05.000")
 				sqlValsRaw["acti_updat_dtm"] = now.Format("2006-01-02 15:04:05.000")
 				sqlValsRaw["acti_eff_date"] = now.Format("2006-01-02")
-				sqlValsRaw["acti_txn_ref_id"] = fmt.Sprintf("D%s%06d", now.Format("060102150405"), t)
+				sqlValsRaw["acti_txn_ref_id"] = sharedRef
 				sqlValsRaw["acti_req_id"] = newUUIDv7()
 				sqlValsRaw["acti_from_acct_id"] = newUUIDv7()
 				sqlValsRaw["acti_to_acct_id"] = newUUIDv7()
