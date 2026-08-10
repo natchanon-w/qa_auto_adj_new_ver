@@ -14,9 +14,10 @@ import (
 )
 
 type Config struct {
-	Bucket     string `json:"bucket"`
-	BasePath   string `json:"base_path"`
-	AwsProfile string `json:"aws_profile"`
+	Bucket        string `json:"bucket"`
+	BasePath      string `json:"base_path"`
+	AwsProfile    string `json:"aws_profile"`
+	EncryptionKey string `json:"encryption_key"` // base64, must match the target env's crypto.encryption_key
 }
 
 type StateFile struct {

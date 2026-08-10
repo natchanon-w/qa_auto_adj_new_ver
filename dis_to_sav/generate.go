@@ -82,9 +82,9 @@ var sqlTemplate = map[string]string{
 	"customer_note":             "test VB drawdown to saving",
 	"customer_ref_id":           "678789827700484",
 	"from_main_account_id":      "",
-	"from_main_account_no":      "2FDNvx3Z0fgSPDuNs83myWNKneovGhCkqyKT0TSGAvbhMUAwB/Evmg==",
+	"from_main_account_no":      "", // encrypted per-row in cmdGenerate, see fromLoanAcctNoPlain
 	"from_transfer_account_no":  "",
-	"from_acct_no":              "eBwvZ44+soewc3ewo1+sx8pc4TnP/iL2HNROhSWnAQkN/2e7uFn7QJqlPmw=",
+	"from_acct_no":              "", // encrypted per-row in cmdGenerate, see fromLoanAcctNoPlain
 	"from_acct_id":              "cf57d7f1-79c1-4df4-aab9-eb62be6d3fb6",
 	"to_internal_acct_id":       "FUND_TRANSFER",
 	"from_trans_code":           "MLDSIN",
@@ -95,9 +95,9 @@ var sqlTemplate = map[string]string{
 	"from_product_type":         "LOAN",
 	"from_acct_type":            "LOAN",
 	"from_branch_code":          "",
-	"from_account_display_name": "wLGWH3Jot9kPWKs/66G+us6GvFjgNSVDLQQC0HP1Ez8FmMTDBolcLzgwbjf5JG2+VgtqEwXy144TtfHY1/w=",
-	"from_account_name_th":      "IJ2If6k9DyA7GDqaVriwH2hfNKpmO59j+J3yB6RnKfPZ+gR9f5G+gSkItu8YoVZsNDjrozTL0RmfB2pffI4=",
-	"from_account_name_en":      "JB2micsdOe1X7mxj/6dxsXI9koQrJQpRIe+2k3aEQTATm9JJ5imNdnU=",
+	"from_account_display_name": "", // encrypted per-row in cmdGenerate, see fromDisplayNamePlain
+	"from_account_name_th":      "", // encrypted per-row in cmdGenerate, see fromNameThPlain
+	"from_account_name_en":      "", // encrypted per-row in cmdGenerate, see fromNameEnPlain
 	"from_bank_code":            "088",
 	"from_core_bank_channel":    "DCB",
 	"from_cif_no":               "678789827700484",
@@ -105,8 +105,8 @@ var sqlTemplate = map[string]string{
 	"from_internal_acct_id":     "FUND_TRANSFER",
 	"to_main_account_id":        "",
 	"to_main_account_no":        "",
-	"to_transfer_account_no":    "130000315610001",
-	"to_acct_no":                "QR7GI9MqYbnR4u7pvEaris9Fx1dsyjuAcAKDK1/uCfm2yWQ8bs=",
+	"to_transfer_account_no":    "", // encrypted per-row in cmdGenerate, see toTransferAcctNoPlain
+	"to_acct_no":                "", // encrypted per-row in cmdGenerate, see toAcctNoPlain
 	"to_acct_id":                "39cdfce5-52af-49d8-b91e-ac14d530843d",
 	"to_trans_code":             "MSADTSN",
 	"to_address":                "",
@@ -116,9 +116,9 @@ var sqlTemplate = map[string]string{
 	"to_product_type":           "SA01",
 	"to_acct_type":              "POCKET",
 	"to_branch_code":            "47",
-	"to_account_display_name":   "wLGWH3Jot9kPWKs/66G+us6GvFjgNSVDLQQC0HP1Ez8FmMTDBolcLzgwbjf5JG2+VgtqEwXy144TtfHY1/w=",
-	"to_account_name_th":        "IJ2If6k9DyA7GDqaVriwH2hfNKpmO59j+J3yB6RnKfPZ+gR9f5G+gSkItu8YoVZsNDjrozTL0RmfB2pffI4=",
-	"to_account_name_en":        "JB2micsdOe1X7mxj/6dxsXI9koQrJQpRIe+2k3aEQTATm9JJ5imNdnU=",
+	"to_account_display_name":   "", // encrypted per-row in cmdGenerate, see toDisplayNamePlain (was wrongly copied from the "from" side)
+	"to_account_name_th":        "", // encrypted per-row in cmdGenerate, see toNameThPlain (was wrongly copied from the "from" side)
+	"to_account_name_en":        "", // encrypted per-row in cmdGenerate, see toNameEnPlain (was wrongly copied from the "from" side)
 	"to_bank_code":              "088",
 	"to_core_bank_channel":      "DCB",
 	"to_cif_no":                 "678789827700484",
@@ -179,6 +179,23 @@ func cmdGenerate(args []string) {
 		c := cases[t%len(cases)]
 		sharedRef := newUUIDv7()
 
+		// Plaintext PII, shared between the CSV row and the SQL row so the two stay
+		// consistent, and regenerated per row so records aren't all identical. The SQL
+		// row stores the encrypted form (see below) — savedb-consumer decrypts these
+		// columns on read, so ciphertext here must be produced with the same
+		// AES-256-GCM scheme it uses, not a static placeholder shared by every row.
+		fromLoanAcctNoPlain := fmt.Sprintf("%d", 100000000000+rand.Int63n(900000000000))
+		toAcctNoPlain := fmt.Sprintf("%d", 1000000000+rand.Int63n(9000000000))
+		toTransferAcctNoPlain := fmt.Sprintf("13000031%07d", rand.Int63n(10000000))
+		fromDisplayNamePlain := "QA AUTOMATION TEST"
+		fromNameThPlain := "ทดสอบ ระบบคิวเอ"
+		fromNameEnPlain := "QA AUTOMATION TEST"
+		// Distinct from the "from" side — the original template wrongly reused the
+		// "from" account's encrypted blob for these "to" columns.
+		toDisplayNamePlain := "QA AUTOMATION SAVINGS"
+		toNameThPlain := "ทดสอบ บัญชีออมทรัพย์"
+		toNameEnPlain := "QA AUTOMATION SAVINGS"
+
 		csvRowMap := make(map[string]string)
 		for k, v := range recTemplate {
 			csvRowMap[k] = v
@@ -187,6 +204,8 @@ func cmdGenerate(args []string) {
 		csvRowMap["dcb_check_duplicate_key"] = sharedRef
 		csvRowMap["dpp_check_duplicate_key"] = sharedRef
 		csvRowMap["dlp_check_duplicate_key"] = sharedRef
+		csvRowMap["dpp_from_loan_acct_no"] = fromLoanAcctNoPlain
+		csvRowMap["dpp_to_acct_no"] = toAcctNoPlain
 		for k, v := range c["csv"] {
 			csvRowMap[k] = v
 		}
@@ -213,6 +232,30 @@ func cmdGenerate(args []string) {
 		sqlVals["original_ref_id"] = sharedRef
 		sqlVals["id"] = newUUIDv7()
 		sqlVals["created_request_id"] = sharedRef
+
+		// Encrypt the whitelisted PII columns with the same AES-256-GCM scheme
+		// savedb-consumer uses (repository.DBColumnWhitelist), so the values it reads
+		// back and decrypts are genuine ciphertext for the plaintext above.
+		for col, plain := range map[string]string{
+			"from_main_account_no":      fromLoanAcctNoPlain,
+			"from_acct_no":              fromLoanAcctNoPlain,
+			"from_account_display_name": fromDisplayNamePlain,
+			"from_account_name_th":      fromNameThPlain,
+			"from_account_name_en":      fromNameEnPlain,
+			"to_acct_no":                toAcctNoPlain,
+			"to_transfer_account_no":    toTransferAcctNoPlain,
+			"to_account_display_name":   toDisplayNamePlain,
+			"to_account_name_th":        toNameThPlain,
+			"to_account_name_en":        toNameEnPlain,
+		} {
+			enc, err := encryptAESGCM(plain, cfg.EncryptionKey)
+			if err != nil {
+				fmt.Printf("Failed to encrypt %s: %v\n", col, err)
+				os.Exit(1)
+			}
+			sqlVals[col] = enc
+		}
+
 		for k, v := range c["sql"] {
 			sqlVals[k] = v
 		}
