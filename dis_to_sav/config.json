@@ -2,5 +2,5 @@
   "bucket": "vb-payment-sit-s3-reconcile",
   "base_path": "dp/adjustment/dis_to_sav/2026-01-10/",
   "aws_profile": "s3_sit_vb",
-  "encryption_key": "kfQr45YcMPmurYjvdZaeLR3O1Ne5YUZoJEX4GXc9zsc="
+  "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
 }
