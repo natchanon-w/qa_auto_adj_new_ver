@@ -97,6 +97,16 @@ func cmdGenerate(args []string) {
 		caseItem := cases[t%len(cases)]
 		sharedRef := newUUIDv7()
 
+		// Plaintext PII, shared between the CSV row and the SQL row so the two stay
+		// consistent. The SQL row stores the encrypted form (see encryptPII below) —
+		// savedb-consumer decrypts these columns on read, so ciphertext here must be
+		// produced with the same AES-256-GCM scheme it uses, not a static placeholder.
+		fromAcctNoPlain := fmt.Sprintf("%d", 100000000000+rand.Int63n(900000000000))
+		toLoanAcctNoPlain := "1234567890"
+		fromDisplayNamePlain := "QA AUTOMATION TEST"
+		fromNameThPlain := "ทดสอบ ระบบคิวเอ"
+		fromNameEnPlain := "QA AUTOMATION TEST"
+
 		csvRowMap := map[string]string{
 			"reconcile_status":         "DLP Unmatch",
 			"unmatch_reason":           "No Record DLP",
@@ -122,10 +132,10 @@ func cmdGenerate(args []string) {
 			"dlp_initiated_by":         "NULL",
 			"dpp_effective_date":       now.Format("2006-01-02"),
 			"dpp_event_dtm":            now.Format("2006-01-02 15:04:05"),
-			"dpp_from_acct_no":         fmt.Sprintf("%d", 100000000000+rand.Int63n(900000000000)),
+			"dpp_from_acct_no":         fromAcctNoPlain,
 			"dpp_from_pocket_no":       fmt.Sprintf("%d", 100000000000+rand.Int63n(900000000000)),
 			"dpp_from_acct_id":         newUUIDv7(),
-			"dpp_to_loan_acct_no":      "1234567890",
+			"dpp_to_loan_acct_no":      toLoanAcctNoPlain,
 			"dpp_to_loan_acct_id":      newUUIDv7(),
 			"dpp_transfer_status":      caseItem["dpp_transfer_status"],
 			"dpp_txn_amt":              "1850.00",
@@ -154,6 +164,47 @@ func cmdGenerate(args []string) {
 			sharedRef, now.Format("20060102"), now.Format("2006-01-02"), now.Format("15:04:05"))
 		dcbResp := fmt.Sprintf(`{"code": "0000", "message": "Success", "data": {"createdRequestId": "%s", "createdDatetime": "%s"}}`,
 			sharedRef, now.Format("2006-01-02T15:04:05.000+07:00"))
+
+		// Encrypt the whitelisted PII columns with the same AES-256-GCM scheme
+		// savedb-consumer uses (repository.DBColumnWhitelist), so the values it reads
+		// back and decrypts are genuine ciphertext for the plaintext above — not a
+		// static placeholder blob that happens to look like base64.
+		fromMainAcctNoEnc, err := encryptAESGCM(fromAcctNoPlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt from_main_account_no: %v\n", err)
+			os.Exit(1)
+		}
+		fromTransferAcctNoEnc, err := encryptAESGCM(fromAcctNoPlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt from_transfer_account_no: %v\n", err)
+			os.Exit(1)
+		}
+		fromAcctNoEnc, err := encryptAESGCM(fromAcctNoPlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt from_acct_no: %v\n", err)
+			os.Exit(1)
+		}
+		fromDisplayNameEnc, err := encryptAESGCM(fromDisplayNamePlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt from_account_display_name: %v\n", err)
+			os.Exit(1)
+		}
+		fromNameThEnc, err := encryptAESGCM(fromNameThPlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt from_account_name_th: %v\n", err)
+			os.Exit(1)
+		}
+		fromNameEnEnc, err := encryptAESGCM(fromNameEnPlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt from_account_name_en: %v\n", err)
+			os.Exit(1)
+		}
+		toAcctNoEnc, err := encryptAESGCM(toLoanAcctNoPlain, cfg.EncryptionKey)
+		if err != nil {
+			fmt.Printf("Failed to encrypt to_acct_no: %v\n", err)
+			os.Exit(1)
+		}
+
 		sqlValsRaw := map[string]interface{}{
 			"ref_id":                    sharedRef,
 			"original_ref_id":           "",
@@ -169,9 +220,9 @@ func cmdGenerate(args []string) {
 			"customer_note":             "PP Initial Repayment",
 			"customer_ref_id":           cifNo,
 			"from_main_account_id":      nil,
-			"from_main_account_no":      "Usi+DSZqYbZl1lRRpL/nIjnRSQCRTQWAetunbPKb5ApjsQkcAQc=",
-			"from_transfer_account_no":  "170000002110001",
-			"from_acct_no":              "Z7ZTjKYAk5gIS//YfASOiZTvJndj8nuEUVNl2huNC1kWI4tVbSE=",
+			"from_main_account_no":      fromMainAcctNoEnc,
+			"from_transfer_account_no":  fromTransferAcctNoEnc,
+			"from_acct_no":              fromAcctNoEnc,
 			"from_acct_id":              newUUIDv7(),
 			"to_internal_acct_id":       "FUND_TRANSFER",
 			"from_trans_code":           "MLRPMIN",
@@ -182,9 +233,9 @@ func cmdGenerate(args []string) {
 			"from_product_type":         "SA01",
 			"from_acct_type":            "POCKET",
 			"from_branch_code":          "46",
-			"from_account_display_name": "ujxJDu2G8UjTUveQgXAmRv6cgtzcKAC4nSsc/cWfi2e0Euf+PT8Pz8d7fE6eYYUsFBc=",
-			"from_account_name_th":      "Xl55Jw6nVJkzRjW5t2btXiG7HqyzYizgXCY5Yq/WHWCx+BKYTfu4O3IOazkS1kDcrok=",
-			"from_account_name_en":      "TC+gIPolPnryLYBIPHuKs1Q4onB2FjGOsO8bXSt1QjIBpg==",
+			"from_account_display_name": fromDisplayNameEnc,
+			"from_account_name_th":      fromNameThEnc,
+			"from_account_name_en":      fromNameEnEnc,
 			"from_bank_code":            "088",
 			"from_core_bank_channel":    "DCB",
 			"from_cif_no":               cifNo,
@@ -193,7 +244,7 @@ func cmdGenerate(args []string) {
 			"to_main_account_id":        nil,
 			"to_main_account_no":        nil,
 			"to_transfer_account_no":    nil,
-			"to_acct_no":                "qJ3v/Xz8Npd4WLxJKM8plHEYWlR7BFhH4BR4Gb6aWg33qXOtlFubjQ==",
+			"to_acct_no":                toAcctNoEnc,
 			"to_acct_id":                newUUIDv7(),
 			"to_trans_code":             "MLRPIN",
 			"to_address":                nil,

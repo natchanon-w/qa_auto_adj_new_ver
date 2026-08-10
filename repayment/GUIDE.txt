@@ -20,14 +20,22 @@ CONFIGURATION
 Edit config.json before running:
 
   {
-    "bucket":      "vb-payment-sit-s3-reconcile",
-    "base_path":   "dp/adjustment/dis_to_ba/2026-01-11/",
-    "aws_profile": "s3_sit_vb"
+    "bucket":         "vb-payment-sit-s3-reconcile",
+    "base_path":      "dp/adjustment/dis_to_ba/2026-01-11/",
+    "aws_profile":    "s3_sit_vb",
+    "encryption_key": ""
   }
 
-  - bucket      : S3 bucket name
-  - base_path   : S3 folder path (the date in the path sets the CSV filename date)
-  - aws_profile : AWS CLI profile name from ~/.aws/credentials
+  - bucket         : S3 bucket name
+  - base_path      : S3 folder path (the date in the path sets the CSV filename date)
+  - aws_profile    : AWS CLI profile name from ~/.aws/credentials
+  - encryption_key : base64 AES-256 key, MUST match the crypto.encryption_key of the
+                     environment you're inserting into (e.g. SIT/UAT). This encrypts
+                     the whitelisted PII columns (from_acct_no, from_account_name_en,
+                     to_acct_no, etc.) with the exact same AES-256-GCM scheme
+                     savedb-consumer uses, so it can decrypt them on read. Get this
+                     value from whoever manages that environment's secrets — never
+                     put a real PRD key in this file.
 
 
 STEPS
