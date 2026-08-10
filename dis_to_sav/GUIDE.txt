@@ -17,15 +17,30 @@ REQUIREMENTS
 
 CONFIGURATION
 -------------
-Edit config.json before running:
+config.json holds one entry per S3 environment under
+"environments", plus "active_env" to pick which one is used
+by generate/finalize/upload:
 
   {
-    "bucket":         "vb-payment-sit-s3-reconcile",
-    "base_path":      "dp/adjustment/dis_to_ba/2026-01-11/",
-    "aws_profile":    "s3_sit_vb",
-    "encryption_key": ""
+    "active_env": "sit",
+    "environments": {
+      "sit": {
+        "bucket":         "vb-payment-sit-s3-reconcile",
+        "base_path":      "dp/adjustment/dis_to_sav/2026-01-10/",
+        "aws_profile":    "s3_sit_vb",
+        "encryption_key": "..."
+      },
+      "uat": {
+        "bucket":         "cb-core-bank-th-uat-s3-payment-reconcile",
+        "base_path":      "dp/adjustment/dis_to_sav/2026-01-11/",
+        "aws_profile":    "s3-cb-uat-th-dpp",
+        "encryption_key": "..."
+      }
+    }
   }
 
+  - active_env     : name of the environment to use (must match a
+                      key under "environments", e.g. "sit" or "uat")
   - bucket         : S3 bucket name
   - base_path      : S3 folder path (the date in the path sets the CSV filename date)
   - aws_profile    : AWS CLI profile name from ~/.aws/credentials
@@ -36,6 +51,11 @@ Edit config.json before running:
                      savedb-consumer uses, so it can decrypt them on read. Get this
                      value from whoever manages that environment's secrets — never
                      put a real PRD key in this file.
+
+To switch environments (e.g. sit → uat), add a new entry
+under "environments" with that env's bucket/base_path/
+aws_profile/encryption_key, then set "active_env" to its
+name — no code changes needed.
 
 
 STEPS

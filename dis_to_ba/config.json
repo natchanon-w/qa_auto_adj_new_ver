@@ -1,5 +1,15 @@
 {
-  "bucket": "vb-payment-sit-s3-reconcile",
-  "base_path": "dp/adjustment/dis_to_ba/2026-01-11/",
-  "aws_profile": "s3-sit-vb"
+  "active_env": "sit",
+  "environments": {
+    "sit": {
+      "bucket": "vb-payment-sit-s3-reconcile",
+      "base_path": "dp/adjustment/dis_to_ba/2026-01-11/",
+      "aws_profile": "s3-sit-vb"
+    },
+    "uat": {
+      "bucket": "cb-core-bank-th-uat-s3-payment-reconcile",
+      "base_path": "dp/adjustment/dis_to_ba/2026-01-12/",
+      "aws_profile": "s3-cb-uat-th-dpp"
+    }
+  }
 }

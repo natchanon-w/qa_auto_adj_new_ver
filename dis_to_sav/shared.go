@@ -20,6 +20,18 @@ type Config struct {
 	EncryptionKey string `json:"encryption_key"` // base64, must match the target env's crypto.encryption_key
 }
 
+type EnvConfig struct {
+	Bucket        string `json:"bucket"`
+	BasePath      string `json:"base_path"`
+	AwsProfile    string `json:"aws_profile"`
+	EncryptionKey string `json:"encryption_key"`
+}
+
+type RawConfig struct {
+	ActiveEnv    string               `json:"active_env"`
+	Environments map[string]EnvConfig `json:"environments"`
+}
+
 type StateFile struct {
 	GeneratedAt string                       `json:"generated_at"`
 	Timestamp   string                       `json:"timestamp"`
@@ -60,12 +72,26 @@ func readConfig() Config {
 		fmt.Printf("Error reading config.json: %v\n", err)
 		os.Exit(1)
 	}
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	var raw RawConfig
+	if err := json.Unmarshal(data, &raw); err != nil {
 		fmt.Printf("Error parsing config.json: %v\n", err)
 		os.Exit(1)
 	}
-	return cfg
+	if raw.ActiveEnv == "" {
+		fmt.Println("config.json is missing \"active_env\"")
+		os.Exit(1)
+	}
+	env, ok := raw.Environments[raw.ActiveEnv]
+	if !ok {
+		fmt.Printf("active_env %q not found under \"environments\" in config.json\n", raw.ActiveEnv)
+		os.Exit(1)
+	}
+	return Config{
+		Bucket:        env.Bucket,
+		BasePath:      env.BasePath,
+		AwsProfile:    env.AwsProfile,
+		EncryptionKey: env.EncryptionKey,
+	}
 }
 
 func resolveWorkDir(args []string) string {
