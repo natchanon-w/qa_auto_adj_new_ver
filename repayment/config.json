@@ -1,5 +1,6 @@
 {
   "active_env": "sit",
+  "generate_mode": "both",
   "environments": {
     "sit": {
       "bucket": "vb-payment-sit-s3-reconcile",

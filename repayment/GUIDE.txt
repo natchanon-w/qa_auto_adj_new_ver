@@ -4,8 +4,10 @@
 
 OVERVIEW
 --------
-This tool generates encrypted CSV test data for the
-Disburse-to-BA reconcile pipeline, then uploads it to S3.
+This tool generates encrypted CSV test data for the loan
+Repayment reconcile pipeline — REPAYMENT_MANUAL_DDR (same-bank)
+and/or REPAY_CROSS_BANK (crossbank) unmatched records — then
+uploads it to S3.
 
 REQUIREMENTS
 ------------
@@ -19,10 +21,12 @@ CONFIGURATION
 -------------
 config.json holds one entry per S3 environment under
 "environments", plus "active_env" to pick which one is used
-by generate/finalize/upload:
+by generate/finalize/upload, and "generate_mode" to pick which
+dataset(s) `generate` produces:
 
   {
     "active_env": "sit",
+    "generate_mode": "both",
     "environments": {
       "sit": {
         "bucket":         "vb-payment-sit-s3-reconcile",
@@ -41,6 +45,12 @@ by generate/finalize/upload:
 
   - active_env     : name of the environment to use (must match a
                       key under "environments", e.g. "sit" or "uat")
+  - generate_mode  : which dataset(s) `generate` writes — one of:
+                        "repayment"  : REPAY_MANUAL_DDR only (same-bank repayment)
+                        "crossbank"  : REPAY_CROSS_BANK only (crossbank repayment)
+                        "both"       : both, in the same run
+                      Omitting this key defaults to "repayment" (old config.json
+                      files keep working unchanged).
   - bucket         : S3 bucket name
   - base_path      : S3 folder path (the date in the path sets the CSV filename date)
   - aws_profile    : AWS CLI profile name from ~/.aws/credentials
@@ -58,39 +68,74 @@ aws_profile/encryption_key, then set "active_env" to its
 name — no code changes needed.
 
 
+CROSSBANK REPAYMENT (REPAY_CROSS_BANK)
+---------------------------------------
+Set "generate_mode": "crossbank" (or "both") to also generate a
+REPAY_CROSS_BANK_RECONCILE_UNMATCHED_<date>.csv dataset alongside
+(or instead of) the regular REPAYMENT_MANUAL_DDR one. It carries
+one extra column, cbpay_status, and its own decision-matrix test
+cases (see crossbankCases in generate.go — confirmed by business
+2026-08-13 against payment-bulk-adj-repayment-processor's
+REPAY_CROSS_BANK matrix). Both datasets insert into the same
+repayment_transactions table, so `finalize` still emits a single
+insert/delete SQL script covering every row generated this run.
+
+
 STEPS
 -----
 
 STEP 1 — Generate test data
   Command:
-    go run . generate <number-of-records>
+    go run . generate <number-of-records> [mode]
 
-  Example (generate 5 records):
+  mode (optional): "repayment" | "crossbank" | "both"
+    Overrides config.json's "generate_mode" for this run only —
+    config.json is not modified.
+
+    If you omit it, the tool prompts interactively instead of
+    silently using config.json's generate_mode:
+
+      Select generate_mode:
+        1) repayment
+        2) crossbank
+        3) both  (config.json default)
+      Enter choice [1-3] (blank = both):
+
+    Press Enter on a blank line to accept config.json's current
+    generate_mode, or type 1/2/3 or the mode name.
+
+  Example (prompted interactively):
     go run . generate 5
 
-  Output:
-    - work/<timestamp>/raw.csv      (editable plain CSV)
-    - work/<timestamp>/state.json   (internal state, do not edit)
+  Example (generate 5 crossbank records, no prompt):
+    go run . generate 5 crossbank
 
-  Tip: You can open and edit raw.csv before running finalize
-       if you need to adjust specific field values.
+  Output (which raw_*.csv file(s) appear depends on the mode in effect):
+    - work/<timestamp>/raw_repayment.csv  (editable plain CSV, if generate_mode includes repayment)
+    - work/<timestamp>/raw_crossbank.csv  (editable plain CSV, if generate_mode includes crossbank)
+    - work/<timestamp>/state.json         (internal state, do not edit)
+
+  Tip: You can open and edit the raw_*.csv file(s) before running
+       finalize if you need to adjust specific field values.
 
 
 STEP 2 — Finalize (encrypt + verify)
   Command:
     go run . finalize
 
-  What it does:
-    - Reads raw.csv from the latest work folder
-    - Encrypts CSV using public.pgp
+  What it does (once per dataset present in state.json):
+    - Reads raw_repayment.csv and/or raw_crossbank.csv from the latest work folder
+    - Encrypts each CSV using public.pgp
     - Verifies the encryption using private.pgp (SHA256 checksum)
-    - Generates control JSON and SQL insert/delete scripts
+    - Generates one control JSON per dataset, and one combined SQL insert/delete script
 
   Output (inside work/<timestamp>/output/):
-    - DISBURSE_TO_BA_RECONCILE_UNMATCHED_<date>.csv.encrypted
-    - reconcile-lending-disburse_to_ba-<uuid>.json
-    - insert_disburse_to_transactions.sql
-    - delete_disburse_to_transactions.sql
+    - REPAYMENT_MANUAL_DDR_RECONCILE_UNMATCHED_<date>.csv.encrypted   (if repayment)
+    - reconcile-lending-repayment_manual_ddr-<uuid>.json               (if repayment)
+    - REPAY_CROSS_BANK_RECONCILE_UNMATCHED_<date>.csv.encrypted       (if crossbank)
+    - reconcile-lending-repay_cross_bank-<uuid>.json                   (if crossbank)
+    - insert_repayment_transactions.sql   (all rows generated this run)
+    - delete_repayment_transactions.sql
 
 
 STEP 3 — Upload to S3
@@ -127,8 +172,9 @@ NOTES
   base_path in config.json, NOT from today's date.
 
   Example:
-    config.json base_path : "dp/adjustment/dis_to_ba/2026-01-11/"
-    Output filename       : DISBURSE_TO_BA_RECONCILE_UNMATCHED_20260111.csv.encrypted
+    config.json base_path : "dp/adjustment/repayment/2026-01-11/"
+    Output filename        : REPAYMENT_MANUAL_DDR_RECONCILE_UNMATCHED_20260111.csv.encrypted
+                              REPAY_CROSS_BANK_RECONCILE_UNMATCHED_20260111.csv.encrypted
 
   To change the filename date, update the date segment in base_path.
 
@@ -136,4 +182,4 @@ NOTES
   so only the latest generated files will be present.
 
 - SQL files are for inserting/deleting test records in the
-  bill_payment_transaction table (run manually in DB as needed).
+  repayment_transactions table (run manually in DB as needed).
