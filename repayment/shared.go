@@ -13,11 +13,20 @@ import (
 	"github.com/ProtonMail/gopenpgp/v3/crypto"
 )
 
+// Generate modes — controls which dataset(s) `generate` produces, set via
+// config.json's "generate_mode". See CsvDataset for the per-dataset output shape.
+const (
+	ModeRepayment = "repayment"
+	ModeCrossbank = "crossbank"
+	ModeBoth      = "both"
+)
+
 type Config struct {
 	Bucket        string `json:"bucket"`
 	BasePath      string `json:"base_path"`
 	AwsProfile    string `json:"aws_profile"`
 	EncryptionKey string `json:"encryption_key"` // base64, must match the target env's crypto.encryption_key
+	GenerateMode  string `json:"generate_mode"`  // "repayment" | "crossbank" | "both"
 }
 
 type EnvConfig struct {
@@ -29,15 +38,26 @@ type EnvConfig struct {
 
 type RawConfig struct {
 	ActiveEnv    string               `json:"active_env"`
+	GenerateMode string               `json:"generate_mode"` // top-level: applies regardless of active_env
 	Environments map[string]EnvConfig `json:"environments"`
+}
+
+// CsvDataset describes one generated CSV output (repayment or crossbank-repayment).
+// finalize.go reads/encrypts RawFilename and writes a control JSON named after CtrlPrefix.
+type CsvDataset struct {
+	CsvFilename string   `json:"csv_filename"` // final S3 filename, e.g. REPAY_CROSS_BANK_RECONCILE_UNMATCHED_20260813.csv
+	RawFilename string   `json:"raw_filename"` // editable plain file inside the work dir, e.g. raw_crossbank.csv
+	CtrlPrefix  string   `json:"ctrl_prefix"`  // reconcile-lending-<ctrl_prefix>-<uuid>.json
+	Header      []string `json:"header"`
 }
 
 type StateFile struct {
 	GeneratedAt string                       `json:"generated_at"`
 	Timestamp   string                       `json:"timestamp"`
-	CsvFilename string                       `json:"csv_filename"`
+	Mode        string                       `json:"mode"`
+	Repayment   *CsvDataset                  `json:"repayment,omitempty"`
+	Crossbank   *CsvDataset                  `json:"crossbank,omitempty"`
 	SqlRows     map[string]map[string]string `json:"sql_rows"`
-	SharedRefs  []string                     `json:"shared_refs"`
 }
 
 var sqlColumns = []string{
@@ -95,11 +115,22 @@ func readConfig() Config {
 		fmt.Printf("active_env %q not found under \"environments\" in config.json\n", raw.ActiveEnv)
 		os.Exit(1)
 	}
+
+	mode := raw.GenerateMode
+	if mode == "" {
+		mode = ModeRepayment // backward-compatible default: config.json written before this field existed
+	}
+	if mode != ModeRepayment && mode != ModeCrossbank && mode != ModeBoth {
+		fmt.Printf("config.json \"generate_mode\" %q is invalid — must be %q, %q or %q\n", mode, ModeRepayment, ModeCrossbank, ModeBoth)
+		os.Exit(1)
+	}
+
 	return Config{
 		Bucket:        env.Bucket,
 		BasePath:      env.BasePath,
 		AwsProfile:    env.AwsProfile,
 		EncryptionKey: env.EncryptionKey,
+		GenerateMode:  mode,
 	}
 }
 
