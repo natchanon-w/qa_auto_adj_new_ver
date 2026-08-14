@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// test add comment
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: go run . <command> [work-dir]")
