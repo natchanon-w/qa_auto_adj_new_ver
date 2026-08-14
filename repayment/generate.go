@@ -137,7 +137,7 @@ func cmdGenerate(args []string) {
 		state.Repayment = generateDataset(datasetSpec{
 			workDir:     workDir,
 			rawFilename: "raw_repayment.csv",
-			filePrefix:  "REPAYMENT_MANUAL_DDR_RECONCILE_UNMATCHED",
+			filePrefix:  "REPAY_MANUAL_DDR_RECONCILE_UNMATCHED",
 			ctrlPrefix:  "repayment_manual_ddr",
 			label:       "repayment",
 			header:      csvHeader,
