@@ -130,10 +130,10 @@ STEP 2 — Finalize (encrypt + verify)
     - Generates one control JSON per dataset, and one combined SQL insert/delete script
 
   Output (inside work/<timestamp>/output/):
-    - REPAYMENT_MANUAL_DDR_RECONCILE_UNMATCHED_<date>.csv.encrypted   (if repayment)
-    - reconcile-lending-repayment_manual_ddr-<uuid>.json               (if repayment)
-    - REPAY_CROSS_BANK_RECONCILE_UNMATCHED_<date>.csv.encrypted       (if crossbank)
-    - reconcile-lending-repay_cross_bank-<uuid>.json                   (if crossbank)
+    - REPAY_MANUAL_DDR_RECONCILE_UNMATCHED_<date>.csv.encrypted              (if repayment)
+    - reconcile-lending-repayment_manual_ddr_unmatched-<32hex>.json          (if repayment)
+    - REPAY_CROSS_BANK_RECONCILE_UNMATCHED_<date>.csv.encrypted             (if crossbank)
+    - reconcile-lending-repayment_cross_bank_unmatched-<32hex>.json          (if crossbank)
     - insert_repayment_transactions.sql   (all rows generated this run)
     - delete_repayment_transactions.sql
 

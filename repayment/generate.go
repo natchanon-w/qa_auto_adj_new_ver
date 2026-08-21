@@ -138,7 +138,7 @@ func cmdGenerate(args []string) {
 			workDir:     workDir,
 			rawFilename: "raw_repayment.csv",
 			filePrefix:  "REPAY_MANUAL_DDR_RECONCILE_UNMATCHED",
-			ctrlPrefix:  "repayment_manual_ddr",
+			ctrlPrefix:  "repayment_manual_ddr_unmatched",
 			label:       "repayment",
 			header:      csvHeader,
 			caseSet:     cases,
@@ -149,7 +149,7 @@ func cmdGenerate(args []string) {
 			workDir:     workDir,
 			rawFilename: "raw_crossbank.csv",
 			filePrefix:  "REPAY_CROSS_BANK_RECONCILE_UNMATCHED",
-			ctrlPrefix:  "repay_cross_bank",
+			ctrlPrefix:  "repayment_cross_bank_unmatched",
 			label:       "crossbank-repayment",
 			header:      crossbankCsvHeader,
 			caseSet:     crossbankCases,
@@ -210,7 +210,7 @@ type datasetSpec struct {
 	workDir     string
 	rawFilename string
 	filePrefix  string // e.g. REPAY_CROSS_BANK_RECONCILE_UNMATCHED
-	ctrlPrefix  string // e.g. repay_cross_bank
+	ctrlPrefix  string // e.g. repayment_cross_bank_unmatched
 	label       string // for log output only
 	header      []string
 	caseSet     []map[string]string

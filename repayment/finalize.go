@@ -197,7 +197,8 @@ func processDataset(ds *CsvDataset, workDir, outputDir, pubKeyPath, privKeyPath 
 
 	// Control JSON
 	uuidv4, _ := uuid.NewRandom()
-	controlFilename := fmt.Sprintf("reconcile-lending-%s-%s.json", ds.CtrlPrefix, uuidv4.String())
+	uuidHex := strings.ReplaceAll(uuidv4.String(), "-", "")
+	controlFilename := fmt.Sprintf("reconcile-lending-%s-%s.json", ds.CtrlPrefix, uuidHex)
 	controlPath := filepath.Join(outputDir, controlFilename)
 
 	schemaList := make([]map[string]string, len(header))
