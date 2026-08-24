@@ -39,70 +39,90 @@ func cmdFinalize(args []string) {
 	pubKeyPath := filepath.Join(baseDir(), "public.pgp")
 	privKeyPath := filepath.Join(baseDir(), "private.pgp")
 
-	var allOrderedRefs []string
 	var summaries []string
 
+	// datasetRun pairs a dataset with the label used to tag each of its rows in the combined
+	// SQL scripts below — repayment and crossbank rows share one insert/delete script (both
+	// target repayment_transactions), distinguished only by a "-- dataset: <label> | ref_id:
+	// <ref>" comment above each row/statement.
+	type datasetRun struct {
+		ds    *CsvDataset
+		label string // "repayment" | "crossbank"
+	}
+	var runs []datasetRun
 	if state.Repayment != nil {
-		refs, err := processDataset(state.Repayment, workDir, outputDir, pubKeyPath, privKeyPath, &summaries)
-		if err != nil {
-			fmt.Printf("Error finalizing repayment dataset: %v\n", err)
-			os.Exit(1)
-		}
-		allOrderedRefs = append(allOrderedRefs, refs...)
+		runs = append(runs, datasetRun{ds: state.Repayment, label: "repayment"})
 	}
 	if state.Crossbank != nil {
-		refs, err := processDataset(state.Crossbank, workDir, outputDir, pubKeyPath, privKeyPath, &summaries)
+		runs = append(runs, datasetRun{ds: state.Crossbank, label: "crossbank"})
+	}
+
+	type labeledRow struct {
+		label string
+		ref   string
+		vals  string // already-joined, SQL-formatted column values
+	}
+	var rows []labeledRow
+	for _, run := range runs {
+		refs, err := processDataset(run.ds, workDir, outputDir, pubKeyPath, privKeyPath, &summaries)
 		if err != nil {
-			fmt.Printf("Error finalizing crossbank dataset: %v\n", err)
+			fmt.Printf("Error finalizing %s dataset: %v\n", run.label, err)
 			os.Exit(1)
 		}
-		allOrderedRefs = append(allOrderedRefs, refs...)
+		for _, ref := range refs {
+			row, ok := state.SqlRows[ref]
+			if !ok {
+				continue
+			}
+			var vals []string
+			for _, col := range sqlColumns {
+				vals = append(vals, row[col]) // already SQL-formatted
+			}
+			rows = append(rows, labeledRow{label: run.label, ref: ref, vals: strings.Join(vals, ", ")})
+		}
 	}
 
-	// SQL — values are pre-formatted SQL fragments; emit verbatim. Both datasets target the
-	// same repayment_transactions table, so one combined insert/delete script covers all rows
-	// generated this run, in repayment-then-crossbank order.
+	// SQL — values are pre-formatted SQL fragments; emit verbatim. One combined insert/delete
+	// script covers every row generated this run; each row/statement carries its own
+	// "-- dataset: ... | ref_id: ..." comment so crossbank vs normal repayment rows (and
+	// which CSV row each maps to) are identifiable at a glance.
 	const tableName = "repayment_transactions"
 	const batchSize = 500
-	sqlPath := filepath.Join(outputDir, "insert_repayment_transactions.sql")
-	deleteSqlPath := filepath.Join(outputDir, "delete_repayment_transactions.sql")
 	insertHeader := buildInsertHeader(tableName)
 
-	var sqlRowsVals []string
-	var deleteStmts []string
-	for _, ref := range allOrderedRefs {
-		row, ok := state.SqlRows[ref]
-		if !ok {
-			continue
-		}
-		var vals []string
-		for _, col := range sqlColumns {
-			vals = append(vals, row[col]) // already SQL-formatted
-		}
-		sqlRowsVals = append(sqlRowsVals, fmt.Sprintf("(%s)", strings.Join(vals, ", ")))
-		deleteStmts = append(deleteStmts, fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"ref_id\" = '%s';", tableName, ref))
-	}
-
-	fSql, _ := os.Create(sqlPath)
-	for i := 0; i < len(sqlRowsVals); i += batchSize {
+	fSql, _ := os.Create(filepath.Join(outputDir, "insert_repayment_transactions.sql"))
+	for i := 0; i < len(rows); i += batchSize {
 		end := i + batchSize
-		if end > len(sqlRowsVals) {
-			end = len(sqlRowsVals)
+		if end > len(rows) {
+			end = len(rows)
 		}
-		fSql.WriteString(insertHeader + strings.Join(sqlRowsVals[i:end], ",\n") + ";\n")
+		fSql.WriteString(insertHeader + "\n")
+		for j := i; j < end; j++ {
+			r := rows[j]
+			fSql.WriteString(fmt.Sprintf("-- dataset: %s | ref_id: %s\n", r.label, r.ref))
+			sep := ","
+			if j == end-1 {
+				sep = ";"
+			}
+			fSql.WriteString(fmt.Sprintf("(%s)%s\n", r.vals, sep))
+		}
 	}
 	fSql.Close()
 
-	fDel, _ := os.Create(deleteSqlPath)
-	fDel.WriteString(strings.Join(deleteStmts, "\n") + "\n")
+	fDel, _ := os.Create(filepath.Join(outputDir, "delete_repayment_transactions.sql"))
+	for _, r := range rows {
+		fDel.WriteString(fmt.Sprintf("-- dataset: %s | ref_id: %s\n", r.label, r.ref))
+		fDel.WriteString(fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"ref_id\" = '%s';\n", tableName, r.ref))
+	}
 	fDel.Close()
+
+	summaries = append(summaries, fmt.Sprintf("insert_repayment_transactions.sql  (%d rows)", len(rows)))
+	summaries = append(summaries, "delete_repayment_transactions.sql")
 
 	fmt.Printf("\nOutput → %s\n", outputDir)
 	for _, s := range summaries {
 		fmt.Printf("  ✓ %s\n", s)
 	}
-	fmt.Printf("  ✓ insert_repayment_transactions.sql  (%d rows)\n", len(sqlRowsVals))
-	fmt.Printf("  ✓ delete_repayment_transactions.sql\n")
 	fmt.Printf("\nRun 'go run . upload' to push to S3\n")
 }
 

@@ -153,6 +153,7 @@ func cmdGenerate(args []string) {
 			label:       "crossbank-repayment",
 			header:      crossbankCsvHeader,
 			caseSet:     crossbankCases,
+			isCrossbank: true,
 		}, times, now, csvDate, cfg, state.SqlRows)
 	}
 
@@ -214,6 +215,7 @@ type datasetSpec struct {
 	label       string // for log output only
 	header      []string
 	caseSet     []map[string]string
+	isCrossbank bool // true for the crossbank dataset — shapes the base repayment_transactions row
 }
 
 // generateDataset writes spec.rawFilename (an editable pipe-delimited CSV) inside workDir,
@@ -226,7 +228,7 @@ func generateDataset(spec datasetSpec, times int, now time.Time, csvDate time.Ti
 	var csvRows [][]string
 	for t := 0; t < times; t++ {
 		caseItem := spec.caseSet[t%len(spec.caseSet)]
-		csvRowMap, sqlVals, sharedRef := generateRowPair(caseItem, cfg, now, csvDate)
+		csvRowMap, sqlVals, sharedRef := generateRowPair(caseItem, cfg, now, csvDate, spec.isCrossbank)
 
 		var row []string
 		for _, h := range spec.header {
@@ -272,7 +274,17 @@ func generateDataset(spec datasetSpec, times int, now time.Time, csvDate time.Ti
 // dlp / dpp / dcb transfer+payment statuses, plus cbpay_status for crossbank cases); none of
 // it feeds the SQL row — that row is a plausible base repayment_transactions record the CSV's
 // reconcile_ref_id points back to, independent of which decision-matrix case is exercised.
-func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvDate time.Time) (map[string]string, map[string]string, string) {
+//
+// When isCrossbank is true, the base row's shape fields (transfer_type, transaction_type,
+// posting_type, input_terminal, from_trans_code/from_internal_acct_id, dcb_request/
+// dcb_response) are overridden to match a real crossbank repayment_transactions record
+// (prod sample repayment_transactions_202608241152.csv, transfer_type MANUAL_CROSSBANK —
+// settles through the SETTLEMENT_PROMPTPAY internal account, so there's no physical "from"
+// customer account and those columns go NULL instead of a synthesized SAV pocket). status /
+// status_code / status_desc / debit_status / credit_status stay at the existing PROCESSING
+// defaults regardless of isCrossbank, and ref_id still shares sharedRef with the CSV row's
+// reconcile_ref_id — neither of those changes with the dataset.
+func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvDate time.Time, isCrossbank bool) (map[string]string, map[string]string, string) {
 	sharedRef := newUUIDv7()
 
 	// Plaintext PII, shared between the CSV row and the SQL row so the two stay
@@ -339,10 +351,25 @@ func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvD
 	// Build SQL row — store pre-formatted SQL fragments
 	recordDtm := csvDate.Format("2006-01-02") + fmt.Sprintf(" %02d:%02d:%02d.000000 +00:00", rand.Intn(24), rand.Intn(60), rand.Intn(60))
 	cifNo := fmt.Sprintf("%015d", rand.Int63n(999999999999999))
-	dcbReq := fmt.Sprintf(`{"clientId": "DigitalPaymentProcessorClientID", "requestId": "%s", "effectiveDate": "%s", "transactionDatetime": "%sT%s+07:00"}`,
-		sharedRef, now.Format("20060102"), now.Format("2006-01-02"), now.Format("15:04:05"))
-	dcbResp := fmt.Sprintf(`{"code": "0000", "message": "Success", "data": {"createdRequestId": "%s", "createdDatetime": "%s"}}`,
-		sharedRef, now.Format("2006-01-02T15:04:05.000+07:00"))
+	refNo := fmt.Sprintf("%012d", rand.Int63n(999999999999))
+	paymentTxnRef := fmt.Sprintf("D07D2%s", now.Format("0102150405"))
+	toAcctID := newUUIDv7()
+	amountStr := "1850.00"
+
+	var dcbReq, dcbResp string
+	if isCrossbank {
+		// Shaped like the real crossbank batch request/response (clientId,
+		// batchRefId, transactions[] with a "custom" leg), success values only —
+		// status defaults stay PROCESSING/0000, see doc comment above.
+		dcbReq = fmt.Sprintf(`{"clientId": "DigitalPaymentProcessorClientID", "requestId": "%s", "batchRefId": "%s", "reversalFlag": false, "transactions": [{"custom": {"amount": %s, "toAccountId": "%s", "denomination": "THB", "internalAccountId": "SETTLEMENT_PROMPTPAY"}, "transactionCode": "MLRPIN", "transactionType": "REPAYMENT", "transactionClass": "L", "transactionRefId": "%s"}], "effectiveDate": "%s", "additionalInfo": {"refId": "%s", "refNo": "%s", "originalChannelRequestId": "%s"}, "transactionDatetime": "%sT%s+07:00"}`,
+			sharedRef, paymentTxnRef, amountStr, toAcctID, paymentTxnRef, csvDate.Format("20060102"), sharedRef, refNo, sharedRef, now.Format("2006-01-02"), now.Format("15:04:05"))
+		dcbResp = `{"code": "0000", "message": "Success"}`
+	} else {
+		dcbReq = fmt.Sprintf(`{"clientId": "DigitalPaymentProcessorClientID", "requestId": "%s", "effectiveDate": "%s", "transactionDatetime": "%sT%s+07:00"}`,
+			sharedRef, now.Format("20060102"), now.Format("2006-01-02"), now.Format("15:04:05"))
+		dcbResp = fmt.Sprintf(`{"code": "0000", "message": "Success", "data": {"createdRequestId": "%s", "createdDatetime": "%s"}}`,
+			sharedRef, now.Format("2006-01-02T15:04:05.000+07:00"))
+	}
 
 	// Encrypt the whitelisted PII columns with the same AES-256-GCM scheme
 	// savedb-consumer uses (repository.DBColumnWhitelist), so the values it reads
@@ -390,11 +417,11 @@ func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvD
 		"req_channel":               "VB",
 		"requester":                 "DLP",
 		"req_dtm":                   recordDtm,
-		"ref_no":                    fmt.Sprintf("%012d", rand.Int63n(999999999999)),
-		"payment_txn_ref":           fmt.Sprintf("D07D2%s", now.Format("0102150405")),
+		"ref_no":                    refNo,
+		"payment_txn_ref":           paymentTxnRef,
 		"tfr_dtm":                   recordDtm,
 		"created_request_id":        sharedRef,
-		"amount":                    "1850.00",
+		"amount":                    amountStr,
 		"denomination":              "THB",
 		"customer_note":             "PP Initial Repayment",
 		"customer_ref_id":           cifNo,
@@ -424,7 +451,7 @@ func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvD
 		"to_main_account_no":        nil,
 		"to_transfer_account_no":    nil,
 		"to_acct_no":                toAcctNoEnc,
-		"to_acct_id":                newUUIDv7(),
+		"to_acct_id":                toAcctID,
 		"to_trans_code":             "MLRPIN",
 		"to_address":                nil,
 		"to_acct_status":            nil,
@@ -478,6 +505,36 @@ func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvD
 		"adjusted_amount":           nil,
 		"override_amount":           nil,
 		"is_pay_off":                false,
+	}
+
+	if isCrossbank {
+		// Crossbank repayments settle through SCB's internal PromptPay settlement
+		// account (SETTLEMENT_PROMPTPAY), not a customer SAV pocket, so there's no
+		// physical "from" account — these columns are NULL in the real record, not
+		// a synthesized/encrypted one. status/status_code/status_desc/debit_status/
+		// credit_status and ref_id are intentionally left untouched above.
+		sqlValsRaw["from_main_account_no"] = nil
+		sqlValsRaw["from_transfer_account_no"] = nil
+		sqlValsRaw["from_acct_no"] = nil
+		sqlValsRaw["from_acct_id"] = nil
+		sqlValsRaw["from_trans_code"] = "MLRPSCN"
+		sqlValsRaw["from_acct_status"] = nil
+		sqlValsRaw["from_product_class"] = nil
+		sqlValsRaw["from_product_group"] = nil
+		sqlValsRaw["from_product_type"] = nil
+		sqlValsRaw["from_acct_type"] = nil
+		sqlValsRaw["from_branch_code"] = nil
+		sqlValsRaw["from_account_display_name"] = nil
+		sqlValsRaw["from_account_name_th"] = nil
+		sqlValsRaw["from_account_name_en"] = nil
+		sqlValsRaw["from_bank_code"] = nil
+		sqlValsRaw["from_core_bank_channel"] = nil
+		sqlValsRaw["from_internal_acct_id"] = "SETTLEMENT_PROMPTPAY"
+		sqlValsRaw["customer_note"] = nil
+		sqlValsRaw["transaction_type"] = "REPAYMENT"
+		sqlValsRaw["posting_type"] = "CUSTOM"
+		sqlValsRaw["transfer_type"] = "MANUAL_CROSSBANK"
+		sqlValsRaw["input_terminal"] = "SCAN"
 	}
 
 	// Pre-format all values as SQL fragments

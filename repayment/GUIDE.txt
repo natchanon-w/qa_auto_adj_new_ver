@@ -77,8 +77,11 @@ one extra column, cbpay_status, and its own decision-matrix test
 cases (see crossbankCases in generate.go — confirmed by business
 2026-08-13 against payment-bulk-adj-repayment-processor's
 REPAY_CROSS_BANK matrix). Both datasets insert into the same
-repayment_transactions table, so `finalize` still emits a single
-insert/delete SQL script covering every row generated this run.
+repayment_transactions table, so `finalize` still emits one combined
+insert/delete SQL script covering every row generated this run —
+each row/statement carries a "-- dataset: repayment|crossbank |
+ref_id: <ref>" comment (see STEP 2 below) so which dataset a given
+row belongs to is identifiable at a glance.
 
 
 STEPS
@@ -127,7 +130,12 @@ STEP 2 — Finalize (encrypt + verify)
     - Reads raw_repayment.csv and/or raw_crossbank.csv from the latest work folder
     - Encrypts each CSV using public.pgp
     - Verifies the encryption using private.pgp (SHA256 checksum)
-    - Generates one control JSON per dataset, and one combined SQL insert/delete script
+    - Generates one control JSON per dataset, plus one combined SQL
+      insert/delete script covering every row generated this run.
+      Each row (insert) / statement (delete) is preceded by a
+      "-- dataset: repayment|crossbank | ref_id: <ref>" comment, so
+      rows from either dataset are identifiable — and traceable back
+      to the matching CSV row via ref_id — without splitting files.
 
   Output (inside work/<timestamp>/output/):
     - REPAY_MANUAL_DDR_RECONCILE_UNMATCHED_<date>.csv.encrypted              (if repayment)
