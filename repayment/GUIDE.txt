@@ -29,16 +29,18 @@ dataset(s) `generate` produces:
     "generate_mode": "both",
     "environments": {
       "sit": {
-        "bucket":         "vb-payment-sit-s3-reconcile",
-        "base_path":      "dp/adjustment/repayment/2026-01-08/",
-        "aws_profile":    "s3-sit-vb",
-        "encryption_key": "..."
+        "bucket":              "vb-payment-sit-s3-reconcile",
+        "base_path":           "dp/adjustment/repayment/2026-01-08/",
+        "crossbank_base_path": "dp/adjustment/repayment_cross_bank/2026-01-08/",
+        "aws_profile":         "s3-sit-vb",
+        "encryption_key":      "..."
       },
       "uat": {
-        "bucket":         "cb-core-bank-th-uat-s3-payment-reconcile",
-        "base_path":      "dp/adjustment/repayment/2026-01-09/",
-        "aws_profile":    "s3-cb-uat-th-dpp",
-        "encryption_key": "..."
+        "bucket":              "cb-core-bank-th-uat-s3-payment-reconcile",
+        "base_path":           "dp/adjustment/repayment/2026-01-09/",
+        "crossbank_base_path": "dp/adjustment/repayment_cross_bank/2026-01-09/",
+        "aws_profile":         "s3-cb-uat-th-dpp",
+        "encryption_key":      "..."
       }
     }
   }
@@ -51,21 +53,27 @@ dataset(s) `generate` produces:
                         "both"       : both, in the same run
                       Omitting this key defaults to "repayment" (old config.json
                       files keep working unchanged).
-  - bucket         : S3 bucket name
-  - base_path      : S3 folder path (the date in the path sets the CSV filename date)
-  - aws_profile    : AWS CLI profile name from ~/.aws/credentials
-  - encryption_key : base64 AES-256 key, MUST match the crypto.encryption_key of the
-                     environment you're inserting into (e.g. SIT/UAT). This encrypts
-                     the whitelisted PII columns (from_acct_no, from_account_name_en,
-                     to_acct_no, etc.) with the exact same AES-256-GCM scheme
-                     savedb-consumer uses, so it can decrypt them on read. Get this
-                     value from whoever manages that environment's secrets — never
-                     put a real PRD key in this file.
+  - bucket             : S3 bucket name
+  - base_path          : S3 folder path for the repayment (same-bank) dataset
+                          (the date in the path sets the CSV filename date)
+  - crossbank_base_path: S3 folder path for the crossbank dataset — a different
+                          folder from base_path (dp/adjustment/repayment_cross_bank/
+                          vs dp/adjustment/repayment/). Only required if you run
+                          generate_mode "crossbank" or "both". Keep its date segment
+                          in sync with base_path's — both feed the same generate run.
+  - aws_profile        : AWS CLI profile name from ~/.aws/credentials
+  - encryption_key     : base64 AES-256 key, MUST match the crypto.encryption_key of the
+                          environment you're inserting into (e.g. SIT/UAT). This encrypts
+                          the whitelisted PII columns (from_acct_no, from_account_name_en,
+                          to_acct_no, etc.) with the exact same AES-256-GCM scheme
+                          savedb-consumer uses, so it can decrypt them on read. Get this
+                          value from whoever manages that environment's secrets — never
+                          put a real PRD key in this file.
 
 To switch environments (e.g. sit → uat), add a new entry
 under "environments" with that env's bucket/base_path/
-aws_profile/encryption_key, then set "active_env" to its
-name — no code changes needed.
+crossbank_base_path/aws_profile/encryption_key, then set
+"active_env" to its name — no code changes needed.
 
 
 CROSSBANK REPAYMENT (REPAY_CROSS_BANK)
@@ -151,11 +159,19 @@ STEP 3 — Upload to S3
     go run . upload
 
   What it does:
-    - Cleans all existing files in the S3 base_path folder
-    - Uploads .encrypted and .json files to S3
+    - Splits output/ files into two groups by filename: crossbank
+      files (REPAY_CROSS_BANK_*.csv/.encrypted and the
+      repayment_cross_bank_unmatched control .json) vs everything
+      else (regular repayment)
+    - Cleans the S3 folder for each group that has files, then
+      uploads that group's .encrypted and .json files to it
+    - If crossbank files exist but crossbank_base_path isn't set
+      for the active env, upload fails with a clear error instead
+      of uploading them to the wrong folder
 
-  Target:
-    s3://<bucket>/<base_path>/
+  Targets:
+    s3://<bucket>/<base_path>/               (repayment)
+    s3://<bucket>/<crossbank_base_path>/     (crossbank)
 
 
 FULL EXAMPLE
@@ -187,7 +203,9 @@ NOTES
   To change the filename date, update the date segment in base_path.
 
 - Each time you run upload, the S3 folder is wiped first,
-  so only the latest generated files will be present.
+  so only the latest generated files will be present. This
+  happens per-group: repayment and crossbank each get their own
+  folder wiped, only if that group has files to upload.
 
 - SQL files are for inserting/deleting test records in the
   repayment_transactions table (run manually in DB as needed).

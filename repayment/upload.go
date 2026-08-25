@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+// crossbankFileMarker identifies output files belonging to the crossbank dataset by name —
+// both REPAY_CROSS_BANK_*.csv/.encrypted and reconcile-lending-repayment_cross_bank_unmatched-*.json
+// contain this substring. Everything else in output/ is treated as the regular repayment dataset.
+const crossbankFileMarker = "CROSS_BANK"
+
 func cmdUpload(args []string) {
 	workDir := resolveWorkDir(args)
 	cfg := readConfig()
@@ -24,25 +29,49 @@ func cmdUpload(args []string) {
 		os.Exit(1)
 	}
 
-	var toUpload []string
+	var repaymentFiles, crossbankFiles []string
 	for _, e := range entries {
-		if !e.IsDir() && (strings.HasSuffix(e.Name(), ".encrypted") || strings.HasSuffix(e.Name(), ".json")) {
-			toUpload = append(toUpload, e.Name())
+		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".encrypted") || strings.HasSuffix(e.Name(), ".json")) {
+			continue
+		}
+		if strings.Contains(strings.ToUpper(e.Name()), crossbankFileMarker) {
+			crossbankFiles = append(crossbankFiles, e.Name())
+		} else {
+			repaymentFiles = append(repaymentFiles, e.Name())
 		}
 	}
 
-	if len(toUpload) == 0 {
+	if len(repaymentFiles) == 0 && len(crossbankFiles) == 0 {
 		fmt.Println("No .encrypted or .json files found in output/. Run 'finalize' first.")
 		os.Exit(1)
 	}
 
-	s3Base := fmt.Sprintf("s3://%s/%s", cfg.Bucket, cfg.BasePath)
+	if len(crossbankFiles) > 0 && cfg.CrossbankBasePath == "" {
+		fmt.Println("Found crossbank output files but config.json is missing \"crossbank_base_path\" for the active env.")
+		os.Exit(1)
+	}
+
+	if len(repaymentFiles) > 0 {
+		uploadGroup(cfg, "repayment", cfg.BasePath, outputDir, repaymentFiles)
+	}
+	if len(crossbankFiles) > 0 {
+		if len(repaymentFiles) > 0 {
+			fmt.Println()
+		}
+		uploadGroup(cfg, "crossbank", cfg.CrossbankBasePath, outputDir, crossbankFiles)
+	}
+}
+
+// uploadGroup cleans basePath on S3 then uploads every file in files (from outputDir) into it.
+func uploadGroup(cfg Config, label, basePath, outputDir string, files []string) {
+	s3Base := fmt.Sprintf("s3://%s/%s", cfg.Bucket, basePath)
+	fmt.Printf("[%s]\n", label)
 	fmt.Printf("Bucket  : %s\n", cfg.Bucket)
-	fmt.Printf("Path    : %s\n", cfg.BasePath)
+	fmt.Printf("Path    : %s\n", basePath)
 	fmt.Printf("Profile : %s\n", cfg.AwsProfile)
 	fmt.Println()
 
-	// Clean S3 base path first
+	// Clean the S3 base path first
 	fmt.Printf("Cleaning %s ...\n", s3Base)
 	cleanCmd := exec.Command("aws", "s3", "rm", s3Base, "--recursive", "--profile", cfg.AwsProfile)
 	cleanCmd.Stdout = os.Stdout
@@ -53,9 +82,9 @@ func cmdUpload(args []string) {
 	fmt.Println()
 
 	// Upload each file
-	for _, filename := range toUpload {
+	for _, filename := range files {
 		localPath := filepath.Join(outputDir, filename)
-		s3Path := fmt.Sprintf("s3://%s/%s%s", cfg.Bucket, cfg.BasePath, filename)
+		s3Path := fmt.Sprintf("s3://%s/%s%s", cfg.Bucket, basePath, filename)
 		fmt.Printf("Uploading %s\n  → %s\n", filename, s3Path)
 		cmd := exec.Command("aws", "s3", "cp", localPath, s3Path, "--profile", cfg.AwsProfile)
 		cmd.Stdout = os.Stdout

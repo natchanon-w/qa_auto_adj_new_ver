@@ -22,18 +22,20 @@ const (
 )
 
 type Config struct {
-	Bucket        string `json:"bucket"`
-	BasePath      string `json:"base_path"`
-	AwsProfile    string `json:"aws_profile"`
-	EncryptionKey string `json:"encryption_key"` // base64, must match the target env's crypto.encryption_key
-	GenerateMode  string `json:"generate_mode"`  // "repayment" | "crossbank" | "both"
+	Bucket            string `json:"bucket"`
+	BasePath          string `json:"base_path"`
+	CrossbankBasePath string `json:"crossbank_base_path"` // S3 prefix for crossbank-repayment output — differs from BasePath
+	AwsProfile        string `json:"aws_profile"`
+	EncryptionKey     string `json:"encryption_key"` // base64, must match the target env's crypto.encryption_key
+	GenerateMode      string `json:"generate_mode"`  // "repayment" | "crossbank" | "both"
 }
 
 type EnvConfig struct {
-	Bucket        string `json:"bucket"`
-	BasePath      string `json:"base_path"`
-	AwsProfile    string `json:"aws_profile"`
-	EncryptionKey string `json:"encryption_key"`
+	Bucket            string `json:"bucket"`
+	BasePath          string `json:"base_path"`
+	CrossbankBasePath string `json:"crossbank_base_path"`
+	AwsProfile        string `json:"aws_profile"`
+	EncryptionKey     string `json:"encryption_key"`
 }
 
 type RawConfig struct {
@@ -126,11 +128,12 @@ func readConfig() Config {
 	}
 
 	return Config{
-		Bucket:        env.Bucket,
-		BasePath:      env.BasePath,
-		AwsProfile:    env.AwsProfile,
-		EncryptionKey: env.EncryptionKey,
-		GenerateMode:  mode,
+		Bucket:            env.Bucket,
+		BasePath:          env.BasePath,
+		CrossbankBasePath: env.CrossbankBasePath,
+		AwsProfile:        env.AwsProfile,
+		EncryptionKey:     env.EncryptionKey,
+		GenerateMode:      mode,
 	}
 }
 
