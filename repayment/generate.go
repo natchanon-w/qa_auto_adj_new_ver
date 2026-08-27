@@ -548,6 +548,15 @@ func generateRowPair(caseItem map[string]string, cfg Config, now time.Time, csvD
 	sqlVals["to_account_name_th"] = "''"
 	sqlVals["to_account_name_en"] = "''"
 
+	if isCrossbank {
+		// from_account_* are NULL in the real prod record, but repayment_transactions
+		// enforces NOT NULL on these name columns — insert '' (same as the to_account_*
+		// columns above) instead of the NULL we set in sqlValsRaw.
+		sqlVals["from_account_display_name"] = "''"
+		sqlVals["from_account_name_th"] = "''"
+		sqlVals["from_account_name_en"] = "''"
+	}
+
 	return csvRowMap, sqlVals, sharedRef
 }
 
