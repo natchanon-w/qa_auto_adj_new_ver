@@ -69,11 +69,23 @@ func uploadGroup(cfg Config, label, basePath, outputDir string, files []string) 
 	fmt.Printf("Bucket  : %s\n", cfg.Bucket)
 	fmt.Printf("Path    : %s\n", basePath)
 	fmt.Printf("Profile : %s\n", cfg.AwsProfile)
+	if cfg.Region != "" {
+		fmt.Printf("Region  : %s\n", cfg.Region)
+	}
 	fmt.Println()
+
+	// regionArgs is appended to every aws invocation so requests hit the bucket's
+	// own regional endpoint — without it, buckets in regions like ap-southeast-7
+	// fail with IllegalLocationConstraintException.
+	regionArgs := []string{}
+	if cfg.Region != "" {
+		regionArgs = []string{"--region", cfg.Region}
+	}
 
 	// Clean the S3 base path first
 	fmt.Printf("Cleaning %s ...\n", s3Base)
-	cleanCmd := exec.Command("aws", "s3", "rm", s3Base, "--recursive", "--profile", cfg.AwsProfile)
+	cleanArgs := append([]string{"s3", "rm", s3Base, "--recursive", "--profile", cfg.AwsProfile}, regionArgs...)
+	cleanCmd := exec.Command("aws", cleanArgs...)
 	cleanCmd.Stdout = os.Stdout
 	cleanCmd.Stderr = os.Stderr
 	if err := cleanCmd.Run(); err != nil {
@@ -86,7 +98,8 @@ func uploadGroup(cfg Config, label, basePath, outputDir string, files []string) 
 		localPath := filepath.Join(outputDir, filename)
 		s3Path := fmt.Sprintf("s3://%s/%s%s", cfg.Bucket, basePath, filename)
 		fmt.Printf("Uploading %s\n  → %s\n", filename, s3Path)
-		cmd := exec.Command("aws", "s3", "cp", localPath, s3Path, "--profile", cfg.AwsProfile)
+		cpArgs := append([]string{"s3", "cp", localPath, s3Path, "--profile", cfg.AwsProfile}, regionArgs...)
+		cmd := exec.Command("aws", cpArgs...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {

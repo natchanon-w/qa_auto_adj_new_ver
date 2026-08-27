@@ -7,14 +7,16 @@
       "base_path": "dp/adjustment/repayment/2026-01-08/",
       "crossbank_base_path": "dp/adjustment/repayment_cross_bank/2026-01-08/",
       "aws_profile": "s3-sit-vb",
+      "region": "",
       "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
     },
     "uat": {
       "bucket": "cb-core-bank-th-uat-s3-payment-reconcile",
-      "base_path": "dp/adjustment/repayment/2026-01-09/",
-      "crossbank_base_path": "dp/adjustment/repayment_cross_bank/2026-01-09/",
+      "base_path": "dp/adjustment/repayment/2026-02-19/",
+      "crossbank_base_path": "dp/adjustment/repayment_cross_bank/2026-02-19/",
       "aws_profile": "s3-cb-uat-th-dpp",
-      "encryption_key": ""
+      "region": "ap-southeast-7",
+      "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
     }
   }
 }

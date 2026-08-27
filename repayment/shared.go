@@ -26,6 +26,7 @@ type Config struct {
 	BasePath          string `json:"base_path"`
 	CrossbankBasePath string `json:"crossbank_base_path"` // S3 prefix for crossbank-repayment output — differs from BasePath
 	AwsProfile        string `json:"aws_profile"`
+	Region            string `json:"region"`         // AWS region of Bucket; passed as --region to the aws CLI. Empty = let the CLI/profile decide.
 	EncryptionKey     string `json:"encryption_key"` // base64, must match the target env's crypto.encryption_key
 	GenerateMode      string `json:"generate_mode"`  // "repayment" | "crossbank" | "both"
 }
@@ -35,6 +36,7 @@ type EnvConfig struct {
 	BasePath          string `json:"base_path"`
 	CrossbankBasePath string `json:"crossbank_base_path"`
 	AwsProfile        string `json:"aws_profile"`
+	Region            string `json:"region"`
 	EncryptionKey     string `json:"encryption_key"`
 }
 
@@ -132,6 +134,7 @@ func readConfig() Config {
 		BasePath:          env.BasePath,
 		CrossbankBasePath: env.CrossbankBasePath,
 		AwsProfile:        env.AwsProfile,
+		Region:            env.Region,
 		EncryptionKey:     env.EncryptionKey,
 		GenerateMode:      mode,
 	}
