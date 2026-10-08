@@ -19,15 +19,20 @@ import (
 )
 
 type Config struct {
-	Bucket     string `json:"bucket"`
-	BasePath   string `json:"base_path"`
-	AwsProfile string `json:"aws_profile"`
+	Env           string `json:"-"` // active_env, for display
+	Bucket        string `json:"bucket"`
+	BasePath      string `json:"base_path"`
+	AwsProfile    string `json:"aws_profile"`
+	Region        string `json:"region"`         // AWS region of Bucket; passed as --region to the aws CLI. Empty = let the CLI/profile decide.
+	EncryptionKey string `json:"encryption_key"` // base64 AES-GCM key = the env's savedb secret.env AES_GCM_KEY (inbound_actual_account PII)
 }
 
 type EnvConfig struct {
-	Bucket     string `json:"bucket"`
-	BasePath   string `json:"base_path"`
-	AwsProfile string `json:"aws_profile"`
+	Bucket        string `json:"bucket"`
+	BasePath      string `json:"base_path"`
+	AwsProfile    string `json:"aws_profile"`
+	Region        string `json:"region"`
+	EncryptionKey string `json:"encryption_key"`
 }
 
 type RawConfig struct {
@@ -87,9 +92,12 @@ func readConfig() Config {
 		os.Exit(1)
 	}
 	return Config{
-		Bucket:     env.Bucket,
-		BasePath:   env.BasePath,
-		AwsProfile: env.AwsProfile,
+		Env:           raw.ActiveEnv,
+		Bucket:        env.Bucket,
+		BasePath:      env.BasePath,
+		AwsProfile:    env.AwsProfile,
+		Region:        env.Region,
+		EncryptionKey: env.EncryptionKey,
 	}
 }
 
@@ -192,19 +200,24 @@ func decryptToBytes(encryptedPath, privKeyPath string) ([]byte, error) {
 // newPIIEncrypter returns the function that encrypts PII columns the way the
 // online inbound path stores them (payment-lib-j-common-service
 // AESEncryptionService.encryptAESGCM): Base64(IV 12 bytes || ciphertext+tag),
-// AES-GCM with a Base64 key, blank stays blank. The key is read from env
-// AES_GCM_KEY (the env's savedb secret.env value) — never put it in this repo.
+// AES-GCM with a Base64 key, blank stays blank. The key is the active env's
+// config.json "encryption_key" (= that env's savedb secret.env AES_GCM_KEY);
+// env var AES_GCM_KEY overrides it. Non-PRD keys only.
 // plain=true returns values unchanged, for an env with aes.gcm.enable=false.
-func newPIIEncrypter(plain bool) func(string) string {
+func newPIIEncrypter(plain bool, cfg Config) func(string) string {
 	if plain {
 		return func(s string) string { return s }
 	}
 	keyB64 := strings.TrimSpace(os.Getenv("AES_GCM_KEY"))
 	if keyB64 == "" {
-		fmt.Println("AES_GCM_KEY is not set.")
-		fmt.Println("  inbound_actual_account rows must be AES-GCM encrypted like online (aes.gcm.enable=true on SIT),")
+		keyB64 = strings.TrimSpace(cfg.EncryptionKey)
+	}
+	if keyB64 == "" {
+		fmt.Printf("No AES-GCM key for env %q.\n", cfg.Env)
+		fmt.Println("  inbound_actual_account rows must be AES-GCM encrypted like online (aes.gcm.enable=true on SIT/UAT),")
 		fmt.Println("  otherwise savedb cannot decrypt them and auto-adjustment sends no TM / CLOG message.")
-		fmt.Println("  export AES_GCM_KEY=<AES_GCM_KEY from the env's savedb secret.env>, or pass --plain for an env with gcm off.")
+		fmt.Println("  Set \"encryption_key\" for this env in config.json (the env's savedb secret.env AES_GCM_KEY),")
+		fmt.Println("  or export AES_GCM_KEY, or pass --plain for an env with gcm off.")
 		os.Exit(1)
 	}
 	key, err := base64.StdEncoding.DecodeString(keyB64)

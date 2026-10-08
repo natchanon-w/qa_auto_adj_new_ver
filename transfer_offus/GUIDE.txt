@@ -88,24 +88,41 @@ REQUIREMENTS
 - AWS CLI   (run: aws --version)
 - AWS profile configured in ~/.aws/credentials
 - public.pgp and private.pgp must be present in this folder
-- For inbound_actual_account: env AES_GCM_KEY = the AES_GCM_KEY value from
-  the target env's payment-inbound-j-actacct-transfer-savedb-consumer
-  secret.env (never commit it). --plain only for an env with
-  aes.gcm.enable=false.
+- For inbound_actual_account: the active env's "encryption_key" in
+  config.json must be the AES_GCM_KEY of that env's
+  payment-inbound-j-actacct-transfer-savedb-consumer (non-PRD envs only,
+  kept in config.json the same way as repayment). Env var AES_GCM_KEY
+  overrides it. --plain only for an env with aes.gcm.enable=false.
 
 
 CONFIGURATION
 -------------
+  Select the env to test with "active_env" (same as repayment):
+
   {
-    "active_env": "sit",
+    "active_env": "sit",                     <- "sit" or "uat"
     "environments": {
       "sit": {
-        "bucket":      "vb-payment-sit-s3-reconcile",
-        "base_path":   "dp/adjustment/transfer-offus/2026-01-10/request/",
-        "aws_profile": "s3-sit-vb"
+        "bucket":         "vb-payment-sit-s3-reconcile",
+        "base_path":      "dp/adjustment/transfer-offus/2026-01-10/request/",
+        "aws_profile":    "s3-sit-vb",
+        "region":         "",
+        "encryption_key": "..."
+      },
+      "uat": {
+        "bucket":         "cb-core-bank-th-uat-s3-payment-reconcile",
+        "base_path":      "...",
+        "aws_profile":    "s3-cb-uat-th-dpp",
+        "region":         "ap-southeast-7",
+        "encryption_key": "..."
       }
     }
   }
+
+  - region: passed as --region to every aws call; required for UAT
+    (bucket in ap-southeast-7). Empty = let the profile decide.
+  - encryption_key: used by generate for inbound_actual_account PII.
+  - generate and upload both print the active env — check it before uploading.
 
   Note base_path ends in "request/" — see item 4 above.
 
@@ -118,7 +135,6 @@ STEP 1 — Generate test data
     go run . generate <records> [types] [--plain]
 
   Examples:
-    export AES_GCM_KEY=...                               # needed when inbound_actual_account is included
     go run . generate 5                                  # all 4 types
     go run . generate 5 outbound_promptpay                # just one
     go run . generate 5 outbound_promptpay,inbound_promptpay
@@ -182,4 +198,5 @@ CHECK THE TM MESSAGE (inbound_actual_account, COMPLETED row)
     transactionFee     = acti_sender_fee_amt (0.00)
     Kafka key          = acti_sending_bank_rrn
     header x-requester = ITMX
-  No message at all = check savedb log for a decrypt error (wrong AES_GCM_KEY).
+  No message at all = check savedb log for a decrypt error (wrong
+  encryption_key for the active env).

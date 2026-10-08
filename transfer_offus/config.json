@@ -4,12 +4,16 @@
     "sit": {
       "bucket": "vb-payment-sit-s3-reconcile",
       "base_path": "dp/adjustment/transfer-off-us/2026-01-10/",
-      "aws_profile": "s3-sit-vb"
+      "aws_profile": "s3-sit-vb",
+      "region": "",
+      "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
     },
     "uat": {
       "bucket": "cb-core-bank-th-uat-s3-payment-reconcile",
       "base_path": "dp/adjustment/transfer-off-us/2026-01-11/",
-      "aws_profile": "s3-cb-uat-th-dpp"
+      "aws_profile": "s3-cb-uat-th-dpp",
+      "region": "ap-southeast-7",
+      "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
     }
   }
 }

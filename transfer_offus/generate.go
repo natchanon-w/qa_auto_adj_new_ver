@@ -84,10 +84,13 @@ func cmdGenerate(args []string) {
 	}
 	selected = orderedSelected
 
+	cfg := readConfig()
+	fmt.Printf("Env     : %s (bucket %s)\n", cfg.Env, cfg.Bucket)
+
 	encryptPII := func(s string) string { return s }
 	for _, k := range selected {
 		if k == "inbound_actual_account" {
-			encryptPII = newPIIEncrypter(plain)
+			encryptPII = newPIIEncrypter(plain, cfg)
 		}
 	}
 
@@ -96,7 +99,6 @@ func cmdGenerate(args []string) {
 	workDir := filepath.Join(baseDir(), "work", timestamp)
 	os.MkdirAll(workDir, os.ModePerm)
 
-	cfg := readConfig()
 	csvDate := extractDateFromBasePath(cfg.BasePath)
 
 	typesState := make(map[string]TypeState)
