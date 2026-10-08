@@ -2,10 +2,10 @@
   "active_env": "uat",
   "environments": {
     "sit": {
-      "bucket": "vb-payment-sit-s3-reconcile",
+      "bucket": "cb-core-bank-th-sit-s3-payment-reconcile",
       "base_path": "dp/adjustment/transfer-off-us/2026-01-10/",
       "aws_profile": "s3-cb-sit-th-dpp",
-      "region": "",
+      "region": "ap-southeast-7",
       "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
     },
     "uat": {

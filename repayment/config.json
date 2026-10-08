@@ -3,11 +3,11 @@
   "generate_mode": "both",
   "environments": {
     "sit": {
-      "bucket": "vb-payment-sit-s3-reconcile",
+      "bucket": "cb-core-bank-th-sit-s3-payment-reconcile",
       "base_path": "dp/adjustment/repayment/2026-01-08/",
       "crossbank_base_path": "dp/adjustment/repayment_cross_bank/2026-01-08/",
       "aws_profile": "s3-cb-sit-th-dpp",
-      "region": "",
+      "region": "ap-southeast-7",
       "encryption_key": "b7rerL2RWhviA2IwEG+fVt1JlyR3Sor9kOAVqaJ98EE="
     },
     "uat": {

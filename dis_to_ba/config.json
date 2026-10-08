@@ -2,7 +2,7 @@
   "active_env": "sit",
   "environments": {
     "sit": {
-      "bucket": "vb-payment-sit-s3-reconcile",
+      "bucket": "cb-core-bank-th-sit-s3-payment-reconcile",
       "base_path": "dp/adjustment/dis_to_ba/2026-01-11/",
       "aws_profile": "s3-cb-sit-th-dpp"
     },
