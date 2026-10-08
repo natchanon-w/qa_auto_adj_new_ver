@@ -33,6 +33,7 @@ type TypeDef struct {
 	Table        string
 	RefColumn    string
 	StatusColumn string
+	ResetStatus  string // status the update script resets rows to; "" = PROCESSING
 	Template     map[string]interface{}
 }
 
@@ -147,20 +148,25 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_INBOUND_ACTUAL_ACCOUNT",
 		ControlSlug:  "transfer_off_us_inbound_actual_account",
 		Table:        "actual_credit_transfer_inbound",
-		RefColumn:    "acti_tfr_ref_no",
+		// Online-parity notes (payment-inbound-j-actacct lookup/transfer/processor consumers +
+		// payment-lib-j-common-service sql_online.xml): the txn ref lives in acti_txn_ref_id (what the
+		// auto-adj update-status API matches on); acti_tfr_ref_no is the DCB pibId. The row waits in PRCS,
+		// not PROCESSING. PII columns are AES-GCM encrypted in generate.go (piiColumnsInboundActAcct).
+		RefColumn:    "acti_txn_ref_id",
 		StatusColumn: "acti_status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"acti_seq_id": nil, "acti_txn_ref_id": nil, "acti_req_dtm": nil, "acti_req_id": nil,
-			"acti_from_acct_id": nil, "acti_from_acct_bank_code": "025", "acti_from_acct_name": "สมเจตน์ ไตรพัฒนาพร",
+			"acti_from_acct_id": nil, "acti_from_acct_bank_code": "004", "acti_from_acct_name": "สมเจตน์ ไตรพัฒนาพร",
 			"acti_from_display_name": "สมเจตน์ ไตรพัฒนาพร", "acti_to_acct_id": nil, "acti_to_acct_status": "0",
-			"acti_to_acct_name": "สมเจตน์ ไตรพัฒนาพร", "acti_to_display_name": "สมเจตน์ ไตรพัฒนาพร", "acti_tfr_amt": "10.01",
-			"acti_tfr_ref_no": nil, "acti_status": "PROCESSING", "acti_status_cd": "DCB410023",
+			"acti_to_acct_name": "SOMJET TRIPATTANAPORN", "acti_to_display_name": "สมเจตน์ ไตรพัฒนาพร", "acti_tfr_amt": "10.01",
+			"acti_tfr_ref_no": nil, "acti_status": "PRCS", "acti_status_cd": "DCB410023",
 			"acti_status_desc": "Breach Terms and Conditions In Smart Contract",
 			"acti_creat_dtm": nil, "acti_updat_dtm": nil, "acti_comments": "",
 			"acti_sending_bank_rrn": nil, "acti_transmission_dtm": "1228030239",
-			"acti_system_trace_no": "019536", "acti_sending_id": "014",
+			"acti_system_trace_no": "019536", "acti_sending_id": "004",
 			"acti_switching_fee_amt": "0.00", "acti_sending_fee_amt": "0.00", "acti_terminal_id": nil,
-			"acti_from_branch_cd": "014", "acti_terminal_type": "60", "acti_pan_id": nil,
+			"acti_from_branch_cd": "004", "acti_terminal_type": "60", "acti_pan_id": nil,
 			"acti_recipt_no": "108172", "acti_trans_time": "100248", "acti_location_cd": "0",
 			"acti_msg_type": "220", "acti_processing_cd": "481000", "acti_from_tax_id": nil,
 			"acti_eff_date": nil, "acti_settlement_date": "1226", "acti_sender_fee_amt": "0.00",
@@ -171,9 +177,11 @@ var typeDefs = map[string]TypeDef{
 			"acti_tfr_server_name":     "payment-inbound-j-actacct-transfer-consumer",
 			"acti_mq_server_name":      "payment-inbound-j-actacct-transfer-processor-consumer",
 			"acti_type_of_receiver": "H", "acti_type_of_sender": "H", "acti_to_trans_code": "MSTIANN",
-			"acti_to_internal_account_id": "SETTLEMENT_PROMPTPAY", "acti_transaction_type": "FUND_TRANSFER",
+			// lookup sets the FROM internal account (masterConfig.fromInternalAccount); TO stays null
+			"acti_to_internal_account_id": nil, "acti_from_internal_account_id": "SETTLEMENT_PROMPTPAY",
+			"acti_from_trans_code": nil, "acti_transaction_type": "FUND_TRANSFER",
 			"acti_to_account_class": "D", "acti_to_account_group": "SAVINGS",
-			"acti_to_account_type": "ACCOUNT", "acti_to_acct_bank_code": "008",
+			"acti_to_account_type": "ACCOUNT", "acti_to_acct_bank_code": "088", // VB_BANK_CD, as PRD rows carry
 			"acti_to_product_group": "SAV", "acti_to_product_type": "SA01", "acti_to_core_bank": "DCB",
 			"acti_posting_type": "INBOUND", "acti_to_acct_no": nil, "acti_to_pocket_no": nil,
 		},
@@ -250,6 +258,7 @@ func sqlColumnsFor(def TypeDef) []string {
 			"acti_to_account_class", "acti_to_account_group", "acti_to_account_type",
 			"acti_to_acct_bank_code", "acti_to_product_group", "acti_to_product_type", "acti_to_core_bank",
 			"acti_posting_type", "acti_to_acct_no", "acti_to_pocket_no",
+			"acti_from_trans_code", "acti_from_internal_account_id",
 		}
 	}
 	panic("unknown type key: " + def.Key)

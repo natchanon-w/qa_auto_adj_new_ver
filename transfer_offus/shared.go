@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,15 +19,20 @@ import (
 )
 
 type Config struct {
-	Bucket     string `json:"bucket"`
-	BasePath   string `json:"base_path"`
-	AwsProfile string `json:"aws_profile"`
+	Env           string `json:"-"` // active_env, for display
+	Bucket        string `json:"bucket"`
+	BasePath      string `json:"base_path"`
+	AwsProfile    string `json:"aws_profile"`
+	Region        string `json:"region"`         // AWS region of Bucket; passed as --region to the aws CLI. Empty = let the CLI/profile decide.
+	EncryptionKey string `json:"encryption_key"` // base64 AES-GCM key = the env's savedb secret.env AES_GCM_KEY (inbound_actual_account PII)
 }
 
 type EnvConfig struct {
-	Bucket     string `json:"bucket"`
-	BasePath   string `json:"base_path"`
-	AwsProfile string `json:"aws_profile"`
+	Bucket        string `json:"bucket"`
+	BasePath      string `json:"base_path"`
+	AwsProfile    string `json:"aws_profile"`
+	Region        string `json:"region"`
+	EncryptionKey string `json:"encryption_key"`
 }
 
 type RawConfig struct {
@@ -39,6 +48,7 @@ type TypeState struct {
 	Table          string                       `json:"table"`
 	RefColumn      string                       `json:"ref_column"`
 	StatusColumn   string                       `json:"status_column"`
+	ResetStatus    string                       `json:"reset_status"` // value the update script resets to; "" (old state.json) = PROCESSING
 	SqlColumns     []string                     `json:"sql_columns"`
 	RawCsvFilename string                       `json:"raw_csv_filename"`
 	CsvFilename    string                       `json:"csv_filename"`
@@ -82,9 +92,12 @@ func readConfig() Config {
 		os.Exit(1)
 	}
 	return Config{
-		Bucket:     env.Bucket,
-		BasePath:   env.BasePath,
-		AwsProfile: env.AwsProfile,
+		Env:           raw.ActiveEnv,
+		Bucket:        env.Bucket,
+		BasePath:      env.BasePath,
+		AwsProfile:    env.AwsProfile,
+		Region:        env.Region,
+		EncryptionKey: env.EncryptionKey,
 	}
 }
 
@@ -182,6 +195,55 @@ func decryptToBytes(encryptedPath, privKeyPath string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
 	return result.Bytes(), nil
+}
+
+// newPIIEncrypter returns the function that encrypts PII columns the way the
+// online inbound path stores them (payment-lib-j-common-service
+// AESEncryptionService.encryptAESGCM): Base64(IV 12 bytes || ciphertext+tag),
+// AES-GCM with a Base64 key, blank stays blank. The key is the active env's
+// config.json "encryption_key" (= that env's savedb secret.env AES_GCM_KEY);
+// env var AES_GCM_KEY overrides it. Non-PRD keys only.
+// plain=true returns values unchanged, for an env with aes.gcm.enable=false.
+func newPIIEncrypter(plain bool, cfg Config) func(string) string {
+	if plain {
+		return func(s string) string { return s }
+	}
+	keyB64 := strings.TrimSpace(os.Getenv("AES_GCM_KEY"))
+	if keyB64 == "" {
+		keyB64 = strings.TrimSpace(cfg.EncryptionKey)
+	}
+	if keyB64 == "" {
+		fmt.Printf("No AES-GCM key for env %q.\n", cfg.Env)
+		fmt.Println("  inbound_actual_account rows must be AES-GCM encrypted like online (aes.gcm.enable=true on SIT/UAT),")
+		fmt.Println("  otherwise savedb cannot decrypt them and auto-adjustment sends no TM / CLOG message.")
+		fmt.Println("  Set \"encryption_key\" for this env in config.json (the env's savedb secret.env AES_GCM_KEY),")
+		fmt.Println("  or export AES_GCM_KEY, or pass --plain for an env with gcm off.")
+		os.Exit(1)
+	}
+	key, err := base64.StdEncoding.DecodeString(keyB64)
+	if err != nil {
+		fmt.Printf("AES_GCM_KEY is not valid Base64: %v\n", err)
+		os.Exit(1)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		fmt.Printf("AES_GCM_KEY is not a valid AES key: %v\n", err)
+		os.Exit(1)
+	}
+	gcm, err := cipher.NewGCM(block) // 12-byte nonce, 16-byte tag = Java GCM_IV_LENGTH 12 / GCM_TAG_LENGTH 128
+	if err != nil {
+		panic(err)
+	}
+	return func(s string) string {
+		if strings.TrimSpace(s) == "" {
+			return ""
+		}
+		iv := make([]byte, gcm.NonceSize())
+		if _, err := cryptorand.Read(iv); err != nil {
+			panic(err)
+		}
+		return base64.StdEncoding.EncodeToString(gcm.Seal(iv, iv, []byte(s), nil))
+	}
 }
 
 func sqlFormat(val interface{}) string {
