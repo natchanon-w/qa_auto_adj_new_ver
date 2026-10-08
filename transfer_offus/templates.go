@@ -52,13 +52,18 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_OUTBOUND_PROMPTPAY",
 		ControlSlug:  "transfer_off_us_outbound_promptpay",
 		Table:        "credit_transfer",
-		RefColumn:    "ref_id",
+		// Online parity (payment-outbound-j-promptpay-transfer-service / -transfer-response-consumer
+		// release-cb): the auto-adj API matches payment_txn_ref (CreditTransferAutoAdjustmentRepository.
+		// *ByPaymentTxnRefs); ref_id is the request id. Rows wait in PRCS. PII is AES-GCM encrypted in
+		// generate.go (piiColumns) and must not be blank: decryptCreditTransfer has no blank/gcm guard.
+		RefColumn:    "payment_txn_ref",
 		StatusColumn: "status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"seq_id": nil, "req_channel": "VB", "requester": "VB", "ref_id": nil,
 			"req_dtm": nil, "retrieval_ref_no": nil, "pib_id": nil, "created_request_id": "",
 			"amount": "0.01", "payment_txn_ref": nil, "customer_note": "Load Test",
-			"status": "PROCESSING", "status_code": "0000", "status_desc": "Success",
+			"status": "PRCS", "status_code": "0000", "status_desc": "Success",
 			"payment_fee": "0.00", "service_type": "OutboundPromptpayTransfer",
 			"created_dtm": nil, "updated_dtm": nil, "transfer_dtm": nil, "denomination": "THB",
 			"input_terminal": "KEYIN", "terminal_id": nil, "pan_id": nil,
@@ -69,10 +74,10 @@ var typeDefs = map[string]TypeDef{
 			"from_trans_code": "MSTOPIN", "from_internal_account_id": "SETTLEMENT_PROMPTPAY",
 			"from_account_status": 0, "from_account_class": "D", "from_account_group": "SAVINGS",
 			"from_account_type": "POCKET", "from_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "from_account_name_th": "สมเจตน์ ไตรพัฒนาพร",
-			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": "",
+			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": nil,
 			"to_any_id": nil, "to_any_id_type": "EWALLETID", "to_bank_code": "008",
 			"to_account_no": nil, "to_account_name": "สมเจตน์ ไตรพัฒนาพร", "to_account_display_name": "สมเจตน์ ไตรพัฒนาพร",
-			"type_of_receiver": "H", "receiver_tax_id": "", "posting_type": "OUTBOUND",
+			"type_of_receiver": "H", "receiver_tax_id": nil, "posting_type": "OUTBOUND",
 			"from_bank_code": "008", "from_product_group": "SAV", "from_product_type": "SA01",
 			"from_core_bank": "DCB", "from_pocket_no": nil, "proc_cd": "481000",
 			"transferee_fee": "0.00", "transferer_fee": "0.00", "sender_fee": "0.00",
@@ -84,13 +89,17 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_OUTBOUND_ACTUAL_ACCOUNT",
 		ControlSlug:  "transfer_off_us_outbound_actual_account",
 		Table:        "actual_credit_transfer",
-		RefColumn:    "ref_id",
+		// Online parity (payment-outbound-j-actacct-transfer-service / -transfer-response-consumer
+		// release-cb): matched by payment_txn_ref, rows wait in PRCS, PII encrypted and never blank
+		// (decryptActualCreditTransfer has no blank/gcm guard).
+		RefColumn:    "payment_txn_ref",
 		StatusColumn: "status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"seq_id": nil, "req_channel": "VB", "requester": "VB", "ref_id": nil,
 			"req_dtm": nil, "retrieval_ref_no": nil, "pib_id": nil, "created_request_id": nil,
 			"amount": "0.01", "payment_txn_ref": nil, "customer_note": "Load Test",
-			"status": "PROCESSING", "status_code": "0000", "status_desc": "Success",
+			"status": "PRCS", "status_code": "0000", "status_desc": "Success",
 			"payment_fee": "0.00", "service_type": "OutboundActacctTransfer",
 			"created_dtm": nil, "updated_dtm": nil, "transfer_dtm": nil, "denomination": "THB",
 			"input_terminal": "KEYIN", "terminal_id": nil, "pan_id": nil,
@@ -101,9 +110,9 @@ var typeDefs = map[string]TypeDef{
 			"from_trans_code": "MSTOAIN", "from_internal_account_id": "SETTLEMENT_PROMPTPAY",
 			"from_account_status": 0, "from_account_class": "D", "from_account_group": "SAVINGS",
 			"from_account_type": "POCKET", "from_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "from_account_name_th": "สมเจตน์ ไตรพัฒนาพร",
-			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": "",
+			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": nil,
 			"to_bank_code": "034", "to_account_no": nil, "to_account_name": "สมเจตน์ ไตรพัฒนาพร",
-			"to_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "type_of_receiver": "H", "receiver_tax_id": "",
+			"to_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "type_of_receiver": "H", "receiver_tax_id": nil,
 			"posting_type": "OUTBOUND", "from_bank_code": "008", "from_product_group": "SAV",
 			"from_product_type": "SA01", "from_core_bank": "DCB", "from_pocket_no": nil,
 			"proc_cd": "481000", "transferee_fee": "0.00", "transferer_fee": "0.00",
@@ -115,15 +124,20 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_INBOUND_PROMPTPAY",
 		ControlSlug:  "transfer_off_us_inbound_promptpay",
 		Table:        "credit_transfer_inbound",
-		RefColumn:    "ctfi_tfr_ref_no",
+		// Online parity (payment-inbound-j-promptpay lookup/transfer/processor consumers + savedb
+		// release-cb): the auto-adj API matches ctfi_txn_ref_id (CreditTransferInboundAutoAdjustmentRepo.
+		// *ByTxnRefIds); ctfi_tfr_ref_no is the DCB pibId. Rows wait in PRCS. PII is AES-GCM encrypted
+		// in generate.go (piiColumns).
+		RefColumn:    "ctfi_txn_ref_id",
 		StatusColumn: "ctfi_status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"ctfi_seq_id": nil, "ctfi_txn_ref_id": nil, "ctfi_req_dtm": nil, "ctfi_req_id": nil,
 			"ctfi_from_acct_id": nil, "ctfi_from_acct_bank_code": "014", "ctfi_from_acct_name": "สมเจตน์ ไตรพัฒนาพร",
 			"ctfi_from_display_name": "สมเจตน์ ไตรพัฒนาพร", "ctfi_to_any_id": nil, "ctfi_to_any_type": "EWALLETID",
 			"ctfi_to_acct_id": nil, "ctfi_to_acct_status": "0", "ctfi_to_acct_name": "สมเจตน์ ไตรพัฒนาพร",
 			"ctfi_to_display_name": "สมเจตน์ ไตรพัฒนาพร", "ctfi_tfr_amt": "0.01", "ctfi_tfr_ref_no": nil,
-			"ctfi_status": "PROCESSING", "ctfi_status_cd": nil, "ctfi_status_desc": nil,
+			"ctfi_status": "PRCS", "ctfi_status_cd": nil, "ctfi_status_desc": nil,
 			"ctfi_creat_dtm": nil, "ctfi_updat_dtm": nil, "ctfi_comments": "",
 			"ctfi_sending_bank_rrn": nil, "ctfi_transmission_dtm": "1228030239",
 			"ctfi_system_trace_no": "019536", "ctfi_sending_id": "014",

@@ -22,10 +22,13 @@ By default `generate` produces all four into ONE work dir
 generate only some of them.
 
 Each variant posts to a different source table:
-  inbound_promptpay        -> credit_transfer_inbound        (ref: ctfi_tfr_ref_no, status: ctfi_status)
+  inbound_promptpay        -> credit_transfer_inbound        (ref: ctfi_txn_ref_id, status: ctfi_status, reset to PRCS)
   inbound_actual_account   -> actual_credit_transfer_inbound  (ref: acti_txn_ref_id, status: acti_status, reset to PRCS)
-  outbound_promptpay       -> credit_transfer                 (ref: ref_id, status: status)
-  outbound_actual_account  -> actual_credit_transfer           (ref: ref_id, status: status)
+  outbound_promptpay       -> credit_transfer                 (ref: payment_txn_ref, status: status, reset to PRCS)
+  outbound_actual_account  -> actual_credit_transfer           (ref: payment_txn_ref, status: status, reset to PRCS)
+  "ref" is the column the auto-adjustment update-status API matches the
+  file's transaction_reference_id on (release-cb consumers) — the update /
+  delete scripts use it too.
 
 
 KNOWN ISSUES FOUND WHILE BUILDING THIS TOOL (read before debugging "why didn't
@@ -80,6 +83,32 @@ my test file get classified")
      acti_transfer_dtm set, acti_to_acct_bank_code 088, from bank = from
      branch = sending id 004, from (not to) internal account id.
 
+6. ALL FOUR TYPES MATCH THE ONLINE PATH (2026-10-08, checked on release-cb):
+   same idea as item 5 for the other three tables.
+   - inbound_promptpay (payment-inbound-j-promptpay-transfer-savedb-consumer):
+     API matches ctfi_txn_ref_id; ctfi_req_id = request UUID,
+     ctfi_tfr_ref_no = 20-digit DCB pibId; ctfi_status PRCS. Encrypted
+     (decrypted by savedb when aes.gcm.enable=true): ctfi_from_acct_id,
+     ctfi_from_acct_name, ctfi_from_display_name, ctfi_from_tax_id,
+     ctfi_to_any_id, ctfi_to_acct_name, ctfi_to_display_name,
+     ctfi_to_acct_no, ctfi_to_pocket_no. ctfi_from_acct_id / ctfi_to_acct_id /
+     ctfi_to_acct_no / ctfi_to_pocket_no = CSV vfs_from_account_no /
+     vfs_to_tm_account_id / vfs_to_account_no / vfs_to_pocket_no;
+     ctfi_transfer_dtm set.
+   - outbound_promptpay / outbound_actual_account
+     (payment-outbound-j-{promptpay,actacct}-transfer-response-consumer):
+     API matches payment_txn_ref (ref_id = request UUID); status PRCS.
+     Encrypted: from_account_no, from_pocket_no, from_account_name_th,
+     from_account_name_en, from_account_display_name, sender_tax_id,
+     to_account_no, to_account_name, to_account_display_name,
+     receiver_tax_id (+ to_any_id for promptpay). These consumers decrypt
+     ALWAYS — no aes.gcm.enable check and no blank check — so every one of
+     these columns must hold a ciphertext: a NULL / '' / plaintext value
+     there means no TM / CLOG message. from_account_no / from_pocket_no /
+     from_account_id / to_account_no = CSV vfs_from_account_no /
+     vfs_from_pocket_no / vfs_from_tm_account_id / vfs_to_account_no;
+     sender / receiver tax id and transfer_dtm set.
+
 
 REQUIREMENTS
 ------------
@@ -87,11 +116,12 @@ REQUIREMENTS
 - AWS CLI   (run: aws --version)
 - AWS profile configured in ~/.aws/credentials
 - public.pgp and private.pgp must be present in this folder
-- For inbound_actual_account: the active env's "encryption_key" in
-  config.json must be the AES_GCM_KEY of that env's
-  payment-inbound-j-actacct-transfer-savedb-consumer (non-PRD envs only,
-  kept in config.json the same way as repayment). Env var AES_GCM_KEY
-  overrides it. --plain only for an env with aes.gcm.enable=false.
+- The active env's "encryption_key" in config.json must be the AES_GCM_KEY
+  of that env's off-us consumers (the inbound savedb and outbound
+  transfer-response consumers; non-PRD envs only, kept in config.json the
+  same way as repayment). Env var AES_GCM_KEY overrides it. --plain only for
+  an env with aes.gcm.enable=false, and only for the inbound types — the
+  outbound consumers always decrypt (item 6).
 
 
 CONFIGURATION
@@ -120,7 +150,7 @@ CONFIGURATION
 
   - region: passed as --region to every aws call; SIT and UAT buckets are
     both in ap-southeast-7. Empty = let the profile decide.
-  - encryption_key: used by generate for inbound_actual_account PII.
+  - encryption_key: used by generate for the PII columns of all four types.
   - generate and upload both print the active env — check it before uploading.
   - base_path: dp/adjustment/transfer-off-us/<date>/ — no "request/" (item 4).
 
