@@ -56,10 +56,9 @@ my test file get classified")
    which uses dataset "VFS-DCB", sha256-but-empty-compression. This tool
    matches the real format (verified against actual S3 downloads).
 
-4. UPLOAD PATH: uploads go to a "request/" subfolder under base_path
-   (s3://bucket/base_path/request/<file>), unlike cardless-deposit/
-   banking-agent which upload straight to base_path. This is baked into
-   config.json's base_path below — do not strip the trailing "request/".
+4. UPLOAD PATH: files go straight to base_path
+   (s3://bucket/dp/adjustment/transfer-off-us/<date>/<file>) — the processor's
+   s3_base_path is "dp/adjustment/transfer-off-us", no "request/" subfolder.
 
 5. INBOUND ACTUAL ACCOUNT ROWS MATCH THE ONLINE PATH (2026-10-08, VBFS-9465):
    the actual_credit_transfer_inbound row is written the way the online
@@ -103,10 +102,10 @@ CONFIGURATION
     "active_env": "sit",                     <- "sit" or "uat"
     "environments": {
       "sit": {
-        "bucket":         "vb-payment-sit-s3-reconcile",
-        "base_path":      "dp/adjustment/transfer-offus/2026-01-10/request/",
+        "bucket":         "cb-core-bank-th-sit-s3-payment-reconcile",
+        "base_path":      "dp/adjustment/transfer-off-us/2026-01-10/",
         "aws_profile":    "s3-cb-sit-th-dpp",
-        "region":         "",
+        "region":         "ap-southeast-7",
         "encryption_key": "..."
       },
       "uat": {
@@ -119,12 +118,11 @@ CONFIGURATION
     }
   }
 
-  - region: passed as --region to every aws call; required for UAT
-    (bucket in ap-southeast-7). Empty = let the profile decide.
+  - region: passed as --region to every aws call; SIT and UAT buckets are
+    both in ap-southeast-7. Empty = let the profile decide.
   - encryption_key: used by generate for inbound_actual_account PII.
   - generate and upload both print the active env — check it before uploading.
-
-  Note base_path ends in "request/" — see item 4 above.
+  - base_path: dp/adjustment/transfer-off-us/<date>/ — no "request/" (item 4).
 
 
 STEPS
@@ -171,7 +169,7 @@ STEP 3 — Upload to S3
     go run . upload [dir] [--keep]
 
   Target:
-    s3://<bucket>/<base_path>/   (base_path already includes "request/")
+    s3://<bucket>/<base_path>   (e.g. dp/adjustment/transfer-off-us/2026-01-10/)
 
 
 FULL EXAMPLE

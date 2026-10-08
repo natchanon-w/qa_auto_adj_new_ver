@@ -102,9 +102,9 @@ func readConfig() Config {
 }
 
 // extractDateFromBasePath scans every "/"-separated segment of base_path for
-// one that parses as YYYY-MM-DD. Off-us base_path ends in ".../request/"
-// (a real convention, not a date), so — unlike the single-segment tools —
-// we can't just take the last path segment.
+// one that parses as YYYY-MM-DD, so a base_path with or without a trailing
+// segment after the date still works (off-us uses
+// dp/adjustment/transfer-off-us/<date>/).
 func extractDateFromBasePath(basePath string) time.Time {
 	for _, part := range strings.Split(strings.Trim(basePath, "/"), "/") {
 		if d, err := time.Parse("2006-01-02", part); err == nil {

@@ -49,8 +49,8 @@ func uploadOne(workDir string, keep bool) {
 		os.Exit(1)
 	}
 
-	// base_path already includes the "request/" subfolder used by real
-	// transfer-offus reconcile uploads — see config.json.
+	// files go straight to base_path (dp/adjustment/transfer-off-us/<date>/),
+	// no "request/" subfolder — the processor's s3_base_path is the folder itself.
 	s3Base := fmt.Sprintf("s3://%s/%s", cfg.Bucket, cfg.BasePath)
 	fmt.Printf("Env     : %s\n", cfg.Env)
 	fmt.Printf("Bucket  : %s\n", cfg.Bucket)
