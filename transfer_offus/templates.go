@@ -52,13 +52,20 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_OUTBOUND_PROMPTPAY",
 		ControlSlug:  "transfer_off_us_outbound_promptpay",
 		Table:        "credit_transfer",
-		RefColumn:    "ref_id",
+		// Online parity (payment-outbound-j-promptpay-transfer-service / -transfer-response-consumer
+		// release-cb): the auto-adj API matches payment_txn_ref (CreditTransferAutoAdjustmentRepository.
+		// *ByPaymentTxnRefs); ref_id is the request id. Rows wait in PRCS. PII is AES-GCM encrypted in
+		// generate.go (piiColumns) and must not be blank: decryptCreditTransfer has no blank/gcm guard.
+		RefColumn:    "payment_txn_ref",
 		StatusColumn: "status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"seq_id": nil, "req_channel": "VB", "requester": "VB", "ref_id": nil,
-			"req_dtm": nil, "retrieval_ref_no": nil, "pib_id": nil, "created_request_id": "",
+			"req_dtm": nil, "retrieval_ref_no": nil, "pib_id": nil, "created_request_id": nil,
 			"amount": "0.01", "payment_txn_ref": nil, "customer_note": "Load Test",
-			"status": "PROCESSING", "status_code": "0000", "status_desc": "Success",
+			// PRCS = DCB debit done, ITMX result not in yet: status_code / status_desc /
+			// proc_cd / is_force_success are only written by the ITMX response consumer.
+			"status": "PRCS", "status_code": nil, "status_desc": nil,
 			"payment_fee": "0.00", "service_type": "OutboundPromptpayTransfer",
 			"created_dtm": nil, "updated_dtm": nil, "transfer_dtm": nil, "denomination": "THB",
 			"input_terminal": "KEYIN", "terminal_id": nil, "pan_id": nil,
@@ -66,17 +73,20 @@ var typeDefs = map[string]TypeDef{
 			"transaction_type": "FUND_TRANSFER", "effective_date": nil, "settlement_date": nil,
 			"from_branch_code": "01", "from_currency_code": "764", "from_province_code": "10",
 			"from_country_code": "TH", "from_account_no": nil, "from_account_id": nil,
-			"from_trans_code": "MSTOPIN", "from_internal_account_id": "SETTLEMENT_PROMPTPAY",
+			// lookup sets to_internal_account_id (masterConfig.getToInternalAccount()), not from
+			"from_trans_code": "MSTOPIN", "from_internal_account_id": nil,
 			"from_account_status": 0, "from_account_class": "D", "from_account_group": "SAVINGS",
 			"from_account_type": "POCKET", "from_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "from_account_name_th": "สมเจตน์ ไตรพัฒนาพร",
-			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": "",
+			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": nil,
 			"to_any_id": nil, "to_any_id_type": "EWALLETID", "to_bank_code": "008",
 			"to_account_no": nil, "to_account_name": "สมเจตน์ ไตรพัฒนาพร", "to_account_display_name": "สมเจตน์ ไตรพัฒนาพร",
-			"type_of_receiver": "H", "receiver_tax_id": "", "posting_type": "OUTBOUND",
-			"from_bank_code": "008", "from_product_group": "SAV", "from_product_type": "SA01",
-			"from_core_bank": "DCB", "from_pocket_no": nil, "proc_cd": "481000",
+			"type_of_receiver": "H", "receiver_tax_id": nil, "posting_type": "OUTBOUND",
+			"from_bank_code": "088", "from_product_group": "SAV", "from_product_type": "SA01", // VB_BANK_CD
+			"from_core_bank": "DCB", "from_pocket_no": nil, "proc_cd": nil,
 			"transferee_fee": "0.00", "transferer_fee": "0.00", "sender_fee": "0.00",
-			"term_type": "80", "is_force_success": "",
+			"term_type": "80", "is_force_success": nil,
+			"to_trans_code": nil, "to_internal_account_id": "SETTLEMENT_PROMPTPAY",
+			"original_ref_id": nil, "reversal_flag": nil, // forward leg
 		},
 	},
 	"outbound_actual_account": {
@@ -84,13 +94,19 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_OUTBOUND_ACTUAL_ACCOUNT",
 		ControlSlug:  "transfer_off_us_outbound_actual_account",
 		Table:        "actual_credit_transfer",
-		RefColumn:    "ref_id",
+		// Online parity (payment-outbound-j-actacct-transfer-service / -transfer-response-consumer
+		// release-cb): matched by payment_txn_ref, rows wait in PRCS, PII encrypted and never blank
+		// (decryptActualCreditTransfer has no blank/gcm guard).
+		RefColumn:    "payment_txn_ref",
 		StatusColumn: "status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"seq_id": nil, "req_channel": "VB", "requester": "VB", "ref_id": nil,
 			"req_dtm": nil, "retrieval_ref_no": nil, "pib_id": nil, "created_request_id": nil,
 			"amount": "0.01", "payment_txn_ref": nil, "customer_note": "Load Test",
-			"status": "PROCESSING", "status_code": "0000", "status_desc": "Success",
+			// PRCS = DCB debit done, ITMX result not in yet: status_code / status_desc /
+			// proc_cd / is_force_success are only written by the ITMX response consumer.
+			"status": "PRCS", "status_code": nil, "status_desc": nil,
 			"payment_fee": "0.00", "service_type": "OutboundActacctTransfer",
 			"created_dtm": nil, "updated_dtm": nil, "transfer_dtm": nil, "denomination": "THB",
 			"input_terminal": "KEYIN", "terminal_id": nil, "pan_id": nil,
@@ -98,16 +114,19 @@ var typeDefs = map[string]TypeDef{
 			"transaction_type": "FUND_TRANSFER", "effective_date": nil, "settlement_date": nil,
 			"from_branch_code": "01", "from_currency_code": "764", "from_province_code": "10",
 			"from_country_code": "TH", "from_account_no": nil, "from_account_id": nil,
-			"from_trans_code": "MSTOAIN", "from_internal_account_id": "SETTLEMENT_PROMPTPAY",
+			// lookup sets to_internal_account_id (masterConfig.getToInternalAccount()), not from
+			"from_trans_code": "MSTOAIN", "from_internal_account_id": nil,
 			"from_account_status": 0, "from_account_class": "D", "from_account_group": "SAVINGS",
 			"from_account_type": "POCKET", "from_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "from_account_name_th": "สมเจตน์ ไตรพัฒนาพร",
-			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": "",
+			"from_account_name_en": "Somjet Tripattanaporn", "type_of_sender": "H", "sender_tax_id": nil,
 			"to_bank_code": "034", "to_account_no": nil, "to_account_name": "สมเจตน์ ไตรพัฒนาพร",
-			"to_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "type_of_receiver": "H", "receiver_tax_id": "",
-			"posting_type": "OUTBOUND", "from_bank_code": "008", "from_product_group": "SAV",
+			"to_account_display_name": "สมเจตน์ ไตรพัฒนาพร", "type_of_receiver": "H", "receiver_tax_id": nil,
+			"posting_type": "OUTBOUND", "from_bank_code": "088", "from_product_group": "SAV", // VB_BANK_CD
 			"from_product_type": "SA01", "from_core_bank": "DCB", "from_pocket_no": nil,
-			"proc_cd": "481000", "transferee_fee": "0.00", "transferer_fee": "0.00",
-			"sender_fee": "0.00", "term_type": "80", "is_force_success": "",
+			"proc_cd": nil, "transferee_fee": "0.00", "transferer_fee": "0.00",
+			"sender_fee": "0.00", "term_type": "80", "is_force_success": nil,
+			"to_trans_code": nil, "to_internal_account_id": "SETTLEMENT_PROMPTPAY",
+			"original_ref_id": nil, "reversal_flag": nil, // forward leg
 		},
 	},
 	"inbound_promptpay": {
@@ -115,15 +134,20 @@ var typeDefs = map[string]TypeDef{
 		FilePrefix:   "TRANSFER_OFF_US_INBOUND_PROMPTPAY",
 		ControlSlug:  "transfer_off_us_inbound_promptpay",
 		Table:        "credit_transfer_inbound",
-		RefColumn:    "ctfi_tfr_ref_no",
+		// Online parity (payment-inbound-j-promptpay lookup/transfer/processor consumers + savedb
+		// release-cb): the auto-adj API matches ctfi_txn_ref_id (CreditTransferInboundAutoAdjustmentRepo.
+		// *ByTxnRefIds). Rows wait in PRCS (retryable DCB error); ctfi_tfr_ref_no / ctfi_transfer_dtm are
+		// only written on DCB success, so they stay NULL. PII is AES-GCM encrypted in generate.go (piiColumns).
+		RefColumn:    "ctfi_txn_ref_id",
 		StatusColumn: "ctfi_status",
+		ResetStatus:  "PRCS",
 		Template: map[string]interface{}{
 			"ctfi_seq_id": nil, "ctfi_txn_ref_id": nil, "ctfi_req_dtm": nil, "ctfi_req_id": nil,
 			"ctfi_from_acct_id": nil, "ctfi_from_acct_bank_code": "014", "ctfi_from_acct_name": "สมเจตน์ ไตรพัฒนาพร",
 			"ctfi_from_display_name": "สมเจตน์ ไตรพัฒนาพร", "ctfi_to_any_id": nil, "ctfi_to_any_type": "EWALLETID",
 			"ctfi_to_acct_id": nil, "ctfi_to_acct_status": "0", "ctfi_to_acct_name": "สมเจตน์ ไตรพัฒนาพร",
 			"ctfi_to_display_name": "สมเจตน์ ไตรพัฒนาพร", "ctfi_tfr_amt": "0.01", "ctfi_tfr_ref_no": nil,
-			"ctfi_status": "PROCESSING", "ctfi_status_cd": nil, "ctfi_status_desc": nil,
+			"ctfi_status": "PRCS", "ctfi_status_cd": "DCB510004", "ctfi_status_desc": "Timeout", // retryable DCB error keeps PRCS
 			"ctfi_creat_dtm": nil, "ctfi_updat_dtm": nil, "ctfi_comments": "",
 			"ctfi_sending_bank_rrn": nil, "ctfi_transmission_dtm": "1228030239",
 			"ctfi_system_trace_no": "019536", "ctfi_sending_id": "014",
@@ -134,7 +158,9 @@ var typeDefs = map[string]TypeDef{
 			"ctfi_lookup_server_name": "payment-inbound-j-promptpay-lookup-consumer",
 			"ctfi_tfr_server_name": "payment-inbound-j-promptpay-transfer-consumer",
 			"ctfi_mq_server_name": "payment-inbound-j-promptpay-transfer-processor-consumer",
-			"ctfi_to_trans_code": "MSTIPNN", "ctfi_to_internal_account_id": "SETTLEMENT_PROMPTPAY",
+			// lookup sets the FROM internal account (masterConfig.getFromInternalAccount()); TO stays null
+			"ctfi_to_trans_code": "MSTIPNN", "ctfi_to_internal_account_id": nil,
+			"ctfi_from_trans_code": nil, "ctfi_from_internal_account_id": "SETTLEMENT_PROMPTPAY",
 			"ctfi_transaction_type": "FUND_TRANSFER", "ctfi_to_acct_bank_code": "008",
 			"ctfi_to_account_class": "D", "ctfi_to_account_group": "WALLET",
 			"ctfi_to_account_type": "ACCOUNT", "ctfi_to_product_group": "SAV",
@@ -150,8 +176,9 @@ var typeDefs = map[string]TypeDef{
 		Table:        "actual_credit_transfer_inbound",
 		// Online-parity notes (payment-inbound-j-actacct lookup/transfer/processor consumers +
 		// payment-lib-j-common-service sql_online.xml): the txn ref lives in acti_txn_ref_id (what the
-		// auto-adj update-status API matches on); acti_tfr_ref_no is the DCB pibId. The row waits in PRCS,
-		// not PROCESSING. PII columns are AES-GCM encrypted in generate.go (piiColumnsInboundActAcct).
+		// auto-adj update-status API matches on). The row waits in PRCS (retryable DCB error), so
+		// acti_tfr_ref_no (DCB pibId) / acti_transfer_dtm, written only on DCB success, stay NULL.
+		// PII columns are AES-GCM encrypted in generate.go (piiColumns).
 		RefColumn:    "acti_txn_ref_id",
 		StatusColumn: "acti_status",
 		ResetStatus:  "PRCS",
@@ -160,8 +187,8 @@ var typeDefs = map[string]TypeDef{
 			"acti_from_acct_id": nil, "acti_from_acct_bank_code": "004", "acti_from_acct_name": "สมเจตน์ ไตรพัฒนาพร",
 			"acti_from_display_name": "สมเจตน์ ไตรพัฒนาพร", "acti_to_acct_id": nil, "acti_to_acct_status": "0",
 			"acti_to_acct_name": "SOMJET TRIPATTANAPORN", "acti_to_display_name": "สมเจตน์ ไตรพัฒนาพร", "acti_tfr_amt": "10.01",
-			"acti_tfr_ref_no": nil, "acti_status": "PRCS", "acti_status_cd": "DCB410023",
-			"acti_status_desc": "Breach Terms and Conditions In Smart Contract",
+			"acti_tfr_ref_no": nil, "acti_status": "PRCS", "acti_status_cd": "DCB510004", // retryable DCB error keeps PRCS
+			"acti_status_desc": "Timeout", // (InboundTransferRetryUtil); DCB410023 would end FAILED
 			"acti_creat_dtm": nil, "acti_updat_dtm": nil, "acti_comments": "",
 			"acti_sending_bank_rrn": nil, "acti_transmission_dtm": "1228030239",
 			"acti_system_trace_no": "019536", "acti_sending_id": "004",
@@ -207,6 +234,7 @@ func sqlColumnsFor(def TypeDef) []string {
 			"to_account_name", "to_account_display_name", "type_of_receiver", "receiver_tax_id", "posting_type",
 			"from_bank_code", "from_product_group", "from_product_type", "from_core_bank", "from_pocket_no",
 			"proc_cd", "transferee_fee", "transferer_fee", "sender_fee", "term_type", "is_force_success",
+			"to_trans_code", "to_internal_account_id", "original_ref_id", "reversal_flag",
 		}
 	case "outbound_actual_account":
 		return []string{
@@ -222,6 +250,7 @@ func sqlColumnsFor(def TypeDef) []string {
 			"to_account_display_name", "type_of_receiver", "receiver_tax_id", "posting_type", "from_bank_code",
 			"from_product_group", "from_product_type", "from_core_bank", "from_pocket_no", "proc_cd",
 			"transferee_fee", "transferer_fee", "sender_fee", "term_type", "is_force_success",
+			"to_trans_code", "to_internal_account_id", "original_ref_id", "reversal_flag",
 		}
 	case "inbound_promptpay":
 		return []string{
@@ -239,6 +268,7 @@ func sqlColumnsFor(def TypeDef) []string {
 			"ctfi_to_account_group", "ctfi_to_account_type", "ctfi_to_product_group", "ctfi_to_product_type",
 			"ctfi_to_core_bank", "ctfi_to_branch_cd", "ctfi_posting_type", "ctfi_to_acct_no",
 			"ctfi_eff_date", "ctfi_transfer_dtm", "ctfi_to_pocket_no",
+			"ctfi_from_trans_code", "ctfi_from_internal_account_id",
 		}
 	case "inbound_actual_account":
 		return []string{
