@@ -79,22 +79,21 @@ my test file get classified")
      are the same values as the CSV row's vfs_to_account_no /
      vfs_to_pocket_no / vfs_to_tm_account_id / vfs_from_account_no.
    - acti_to_cif_no (15 digits) is set, so TM toCustomerId can be checked.
-   - acti_status PRCS (not PROCESSING), acti_tfr_ref_no = a DCB-style pibId,
-     acti_transfer_dtm set, acti_to_acct_bank_code 088, from bank = from
-     branch = sending id 004, from (not to) internal account id.
+   - acti_status PRCS (not PROCESSING), acti_to_acct_bank_code 088, from
+     bank = from branch = sending id 004, from (not to) internal account id.
+   - PRCS state = item 7.
 
 6. ALL FOUR TYPES MATCH THE ONLINE PATH (2026-10-08, checked on release-cb):
    same idea as item 5 for the other three tables.
    - inbound_promptpay (payment-inbound-j-promptpay-transfer-savedb-consumer):
-     API matches ctfi_txn_ref_id; ctfi_req_id = request UUID,
-     ctfi_tfr_ref_no = 20-digit DCB pibId; ctfi_status PRCS. Encrypted
+     API matches ctfi_txn_ref_id; ctfi_req_id = request UUID;
+     ctfi_status PRCS (item 7); from (not to) internal account id. Encrypted
      (decrypted by savedb when aes.gcm.enable=true): ctfi_from_acct_id,
      ctfi_from_acct_name, ctfi_from_display_name, ctfi_from_tax_id,
      ctfi_to_any_id, ctfi_to_acct_name, ctfi_to_display_name,
      ctfi_to_acct_no, ctfi_to_pocket_no. ctfi_from_acct_id / ctfi_to_acct_id /
      ctfi_to_acct_no / ctfi_to_pocket_no = CSV vfs_from_account_no /
-     vfs_to_tm_account_id / vfs_to_account_no / vfs_to_pocket_no;
-     ctfi_transfer_dtm set.
+     vfs_to_tm_account_id / vfs_to_account_no / vfs_to_pocket_no.
    - outbound_promptpay / outbound_actual_account
      (payment-outbound-j-{promptpay,actacct}-transfer-response-consumer):
      API matches payment_txn_ref (ref_id = request UUID); status PRCS.
@@ -107,7 +106,24 @@ my test file get classified")
      there means no TM / CLOG message. from_account_no / from_pocket_no /
      from_account_id / to_account_no = CSV vfs_from_account_no /
      vfs_from_pocket_no / vfs_from_tm_account_id / vfs_to_account_no;
-     sender / receiver tax id and transfer_dtm set.
+     sender / receiver tax id set. PRCS state = item 7.
+
+7. PRCS ROWS LOOK LIKE A REAL PRCS ROW (2026-10-08, release-cb; columns =
+   the env's table DDL, checked 1:1):
+   - inbound (both): PRCS only comes from a retryable DCB error
+     (InboundTransferRetryUtil: DPP5007 / DCB510004 / DCB510002), so
+     status_cd / status_desc = DCB510004 / Timeout, and tfr_ref_no (pibId)
+     and transfer_dtm are NULL — the processor writes those only on DCB
+     success. TM transactionDateTime is then the send time (fallback).
+   - outbound (both): PRCS = DCB debit done, ITMX result pending: pib_id,
+     created_request_id, transfer_dtm set; status_code, status_desc,
+     proc_cd, is_force_success NULL (written by the ITMX response
+     consumer); from_bank_code 088 (VB_BANK_CD); to (not from) internal
+     account id; to_trans_code / original_ref_id / reversal_flag NULL;
+     retrieval_ref_no numeric (12 digits).
+   - Not stored by online, so not in the script: the sender's CIF
+     (fromCustRefId is @Transient on CreditTransfer / ActualCreditTransfer —
+     outbound TM fromCustomerId is null on auto-adjustment; separate task).
 
 
 REQUIREMENTS
@@ -224,6 +240,7 @@ CHECK THE TM MESSAGE (inbound_actual_account, COMPLETED row)
     fromAccountNo      = vfs_from_account_no
     toBranchCode       = 0000
     transactionFee     = acti_sender_fee_amt (0.00)
+    transactionDateTime ≈ the auto-adjustment run time (acti_transfer_dtm is NULL)
     Kafka key          = acti_sending_bank_rrn
     header x-requester = ITMX
   No message at all = check savedb log for a decrypt error (wrong

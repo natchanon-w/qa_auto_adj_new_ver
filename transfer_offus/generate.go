@@ -193,8 +193,11 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["req_dtm"] = now.Format("2006-01-02 15:04:05")
 				sqlValsRaw["created_dtm"] = now.Format("2006-01-02 15:04:05.000")
 				sqlValsRaw["updated_dtm"] = now.Format("2006-01-02 15:04:05.000")
-				sqlValsRaw["retrieval_ref_no"] = newUUIDv7()
+				sqlValsRaw["retrieval_ref_no"] = fmt.Sprintf("%012d", rand.Int63n(1000000000000)) // lookup genRetRefNo: numeric
 				sqlValsRaw["effective_date"] = now.Format("2006-01-02")
+				// PRCS = DCB debit succeeded (transfer service updateActualCreditTransferTxn), ITMX pending
+				sqlValsRaw["pib_id"] = newUUIDv7()             // DCB pibId
+				sqlValsRaw["created_request_id"] = newUUIDv7() // DCB createdRequestId
 				sqlValsRaw["payment_txn_ref"] = sharedRef // what the auto-adj API matches on
 				sqlValsRaw["ref_id"] = newUUIDv7()        // request id → TM requestId
 				// online: account, pocket and TM account id are the same values the CSV row carries.
@@ -204,7 +207,7 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["to_account_no"] = csvRowMap["vfs_to_account_no"]
 				sqlValsRaw["sender_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
 				sqlValsRaw["receiver_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
-				sqlValsRaw["transfer_dtm"] = now.Format("2006-01-02 15:04:05.000") // TM transactionDateTime
+				sqlValsRaw["transfer_dtm"] = now.Format("2006-01-02 15:04:05.000") // DCB valueDatetime → TM transactionDateTime
 				if key == "outbound_promptpay" {
 					sqlValsRaw["to_any_id"] = fmt.Sprintf("088987%09d", rand.Int63n(1000000000))
 				}
@@ -225,8 +228,8 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["ctfi_to_acct_no"] = csvRowMap["vfs_to_account_no"]     // lookup accountNo → TM "TR to <no>"
 				sqlValsRaw["ctfi_to_pocket_no"] = csvRowMap["vfs_to_pocket_no"]    // lookup pocketNumber → TM toAccountNo
 				sqlValsRaw["ctfi_from_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
-				sqlValsRaw["ctfi_transfer_dtm"] = now.Format("2006-01-02 15:04:05.000") // DCB createdDatetime → TM transactionDateTime
-				sqlValsRaw["ctfi_tfr_ref_no"] = fmt.Sprintf("%020d", rand.Int63n(1<<62))  // DCB pibId (varchar 20)
+				// ctfi_tfr_ref_no / ctfi_transfer_dtm stay NULL: the processor writes them only on DCB success
+				// (CMPLT); a PRCS row has neither, and TM transactionDateTime falls back to the send time.
 			case "inbound_actual_account":
 				sqlValsRaw["acti_seq_id"] = 60000000000000000 + rand.Int63n(9999999999999999)
 				sqlValsRaw["acti_req_dtm"] = now.Format("2006-01-02 15:04:05.000")
@@ -245,8 +248,8 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["acti_to_cif_no"] = fmt.Sprintf("%015d", rand.Int63n(1000000000000000)) // lookup custRefId → TM toCustomerId
 				sqlValsRaw["acti_from_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
 				sqlValsRaw["acti_receiver_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
-				sqlValsRaw["acti_transfer_dtm"] = now.Format("2006-01-02 15:04:05.000") // DCB valueDatetime → TM transactionDateTime
-				sqlValsRaw["acti_tfr_ref_no"] = newUUIDv7()                              // DCB pibId
+				// acti_tfr_ref_no / acti_transfer_dtm stay NULL: the processor writes them only on DCB success
+				// (CMPLT); a PRCS row has neither, and TM transactionDateTime falls back to the send time.
 			}
 			for _, col := range piiColumns[key] {
 				if s, ok := sqlValsRaw[col].(string); ok {
