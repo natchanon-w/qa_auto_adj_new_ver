@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -39,6 +43,7 @@ type TypeState struct {
 	Table          string                       `json:"table"`
 	RefColumn      string                       `json:"ref_column"`
 	StatusColumn   string                       `json:"status_column"`
+	ResetStatus    string                       `json:"reset_status"` // value the update script resets to; "" (old state.json) = PROCESSING
 	SqlColumns     []string                     `json:"sql_columns"`
 	RawCsvFilename string                       `json:"raw_csv_filename"`
 	CsvFilename    string                       `json:"csv_filename"`
@@ -182,6 +187,50 @@ func decryptToBytes(encryptedPath, privKeyPath string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
 	return result.Bytes(), nil
+}
+
+// newPIIEncrypter returns the function that encrypts PII columns the way the
+// online inbound path stores them (payment-lib-j-common-service
+// AESEncryptionService.encryptAESGCM): Base64(IV 12 bytes || ciphertext+tag),
+// AES-GCM with a Base64 key, blank stays blank. The key is read from env
+// AES_GCM_KEY (the env's savedb secret.env value) — never put it in this repo.
+// plain=true returns values unchanged, for an env with aes.gcm.enable=false.
+func newPIIEncrypter(plain bool) func(string) string {
+	if plain {
+		return func(s string) string { return s }
+	}
+	keyB64 := strings.TrimSpace(os.Getenv("AES_GCM_KEY"))
+	if keyB64 == "" {
+		fmt.Println("AES_GCM_KEY is not set.")
+		fmt.Println("  inbound_actual_account rows must be AES-GCM encrypted like online (aes.gcm.enable=true on SIT),")
+		fmt.Println("  otherwise savedb cannot decrypt them and auto-adjustment sends no TM / CLOG message.")
+		fmt.Println("  export AES_GCM_KEY=<AES_GCM_KEY from the env's savedb secret.env>, or pass --plain for an env with gcm off.")
+		os.Exit(1)
+	}
+	key, err := base64.StdEncoding.DecodeString(keyB64)
+	if err != nil {
+		fmt.Printf("AES_GCM_KEY is not valid Base64: %v\n", err)
+		os.Exit(1)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		fmt.Printf("AES_GCM_KEY is not a valid AES key: %v\n", err)
+		os.Exit(1)
+	}
+	gcm, err := cipher.NewGCM(block) // 12-byte nonce, 16-byte tag = Java GCM_IV_LENGTH 12 / GCM_TAG_LENGTH 128
+	if err != nil {
+		panic(err)
+	}
+	return func(s string) string {
+		if strings.TrimSpace(s) == "" {
+			return ""
+		}
+		iv := make([]byte, gcm.NonceSize())
+		if _, err := cryptorand.Read(iv); err != nil {
+			panic(err)
+		}
+		return base64.StdEncoding.EncodeToString(gcm.Seal(iv, iv, []byte(s), nil))
+	}
 }
 
 func sqlFormat(val interface{}) string {

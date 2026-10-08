@@ -214,7 +214,11 @@ func finalizeOne(workDir string) {
 				end = len(quotedRefs)
 			}
 			batch := strings.Join(quotedRefs[i:end], ", ")
-			fUpdate.WriteString(fmt.Sprintf("UPDATE \"public\".\"%s\" SET \"%s\" = 'PROCESSING' WHERE \"%s\" IN (%s);\n", ts.Table, ts.StatusColumn, ts.RefColumn, batch))
+			resetStatus := ts.ResetStatus
+			if resetStatus == "" {
+				resetStatus = "PROCESSING"
+			}
+			fUpdate.WriteString(fmt.Sprintf("UPDATE \"public\".\"%s\" SET \"%s\" = '%s' WHERE \"%s\" IN (%s);\n", ts.Table, ts.StatusColumn, resetStatus, ts.RefColumn, batch))
 			fDelete.WriteString(fmt.Sprintf("DELETE FROM \"public\".\"%s\" WHERE \"%s\" IN (%s);\n", ts.Table, ts.RefColumn, batch))
 		}
 		deleteRows += len(quotedRefs)

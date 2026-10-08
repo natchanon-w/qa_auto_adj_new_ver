@@ -23,7 +23,7 @@ generate only some of them.
 
 Each variant posts to a different source table:
   inbound_promptpay        -> credit_transfer_inbound        (ref: ctfi_tfr_ref_no, status: ctfi_status)
-  inbound_actual_account   -> actual_credit_transfer_inbound  (ref: acti_tfr_ref_no, status: acti_status)
+  inbound_actual_account   -> actual_credit_transfer_inbound  (ref: acti_txn_ref_id, status: acti_status, reset to PRCS)
   outbound_promptpay       -> credit_transfer                 (ref: ref_id, status: status)
   outbound_actual_account  -> actual_credit_transfer           (ref: ref_id, status: status)
 
@@ -61,6 +61,26 @@ my test file get classified")
    banking-agent which upload straight to base_path. This is baked into
    config.json's base_path below — do not strip the trailing "request/".
 
+5. INBOUND ACTUAL ACCOUNT ROWS MATCH THE ONLINE PATH (2026-10-08, VBFS-9465):
+   the actual_credit_transfer_inbound row is written the way the online
+   inbound path (lookup / transfer / processor consumers) writes it, because
+   savedb builds the auto-adjustment TM message from this row:
+   - PII columns are AES-GCM encrypted with the env's key (SIT has
+     aes.gcm.enable=true): acti_from_acct_id (sender account no),
+     acti_from_acct_name, acti_from_display_name, acti_from_tax_id,
+     acti_to_acct_no, acti_to_acct_name, acti_to_display_name,
+     acti_to_cif_no, acti_receiver_tax_id, acti_to_pocket_no.
+     A plaintext value there makes savedb's decrypt throw: the API still
+     answers 0000 and the status changes, but NO TM (COMPLETED) / CLOG
+     (FAILED) message is sent.
+   - acti_to_acct_no / acti_to_pocket_no / acti_to_acct_id / acti_from_acct_id
+     are the same values as the CSV row's vfs_to_account_no /
+     vfs_to_pocket_no / vfs_to_tm_account_id / vfs_from_account_no.
+   - acti_to_cif_no (15 digits) is set, so TM toCustomerId can be checked.
+   - acti_status PRCS (not PROCESSING), acti_tfr_ref_no = a DCB-style pibId,
+     acti_transfer_dtm set, acti_to_acct_bank_code 088, from bank = from
+     branch = sending id 004, from (not to) internal account id.
+
 
 REQUIREMENTS
 ------------
@@ -68,6 +88,10 @@ REQUIREMENTS
 - AWS CLI   (run: aws --version)
 - AWS profile configured in ~/.aws/credentials
 - public.pgp and private.pgp must be present in this folder
+- For inbound_actual_account: env AES_GCM_KEY = the AES_GCM_KEY value from
+  the target env's payment-inbound-j-actacct-transfer-savedb-consumer
+  secret.env (never commit it). --plain only for an env with
+  aes.gcm.enable=false.
 
 
 CONFIGURATION
@@ -91,12 +115,14 @@ STEPS
 
 STEP 1 — Generate test data
   Command:
-    go run . generate <records> [types]
+    go run . generate <records> [types] [--plain]
 
   Examples:
+    export AES_GCM_KEY=...                               # needed when inbound_actual_account is included
     go run . generate 5                                  # all 4 types
     go run . generate 5 outbound_promptpay                # just one
     go run . generate 5 outbound_promptpay,inbound_promptpay
+    go run . generate 2 inbound_actual_account            # 1 COMPLETED + 1 FAILED
 
   Output (work/<timestamp>/):
     - raw_inbound_promptpay.csv        (only for selected types)
@@ -145,3 +171,15 @@ NOTES
   segment found anywhere in base_path, NOT from today's date.
 - SQL files insert/update/delete against 4 different source tables
   in one shared script — see the per-type table mapping above.
+
+CHECK THE TM MESSAGE (inbound_actual_account, COMPLETED row)
+  On topic payment.common.transaction.downstream.TM, for the txn ref:
+    toAccountNo        = vfs_to_pocket_no (plaintext, not ciphertext)
+    toAccountComment   = "TR to " + vfs_to_account_no
+    toCustomerId       = the 15-digit acti_to_cif_no (decrypted)
+    fromAccountNo      = vfs_from_account_no
+    toBranchCode       = 0000
+    transactionFee     = acti_sender_fee_amt (0.00)
+    Kafka key          = acti_sending_bank_rrn
+    header x-requester = ITMX
+  No message at all = check savedb log for a decrypt error (wrong AES_GCM_KEY).

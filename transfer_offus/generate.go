@@ -21,12 +21,36 @@ func newUUIDv7() string {
 	return u.String()
 }
 
+// piiColumnsInboundActAcct are the actual_credit_transfer_inbound columns the
+// online path stores AES-GCM encrypted (TransferEncryptionService.
+// encryptActualCreditTransferInbound); savedb decrypts them before building the
+// auto-adjustment TM / CLOG message, so a plaintext value there fails the send.
+var piiColumnsInboundActAcct = []string{
+	"acti_from_acct_id", // entity field actiFromAccountNo: the sender's account number
+	"acti_from_acct_name", "acti_from_display_name", "acti_from_tax_id",
+	"acti_to_acct_no", "acti_to_acct_name", "acti_to_display_name",
+	"acti_to_cif_no", "acti_receiver_tax_id", "acti_to_pocket_no",
+}
+
 func cmdGenerate(args []string) {
+	plain := false
+	var positional []string
+	for _, a := range args {
+		if a == "--plain" {
+			plain = true
+			continue
+		}
+		positional = append(positional, a)
+	}
+	args = positional
+
 	if len(args) < 1 {
-		fmt.Println("Usage: go run . generate <records> [types]")
+		fmt.Println("Usage: go run . generate <records> [types] [--plain]")
 		fmt.Println("  types: comma-separated subset of:")
 		fmt.Println("    inbound_promptpay,inbound_actual_account,outbound_promptpay,outbound_actual_account")
 		fmt.Println("  omitted = all four (default, matches a real off-us batch)")
+		fmt.Println("  inbound_actual_account PII is AES-GCM encrypted with env AES_GCM_KEY;")
+		fmt.Println("  --plain skips that (only for an env with aes.gcm.enable=false)")
 		os.Exit(1)
 	}
 	times, err := strconv.Atoi(args[0])
@@ -59,6 +83,13 @@ func cmdGenerate(args []string) {
 		}
 	}
 	selected = orderedSelected
+
+	encryptPII := func(s string) string { return s }
+	for _, k := range selected {
+		if k == "inbound_actual_account" {
+			encryptPII = newPIIEncrypter(plain)
+		}
+	}
 
 	now := time.Now()
 	timestamp := now.Format("20060102_150405")
@@ -164,9 +195,23 @@ func cmdGenerate(args []string) {
 				sqlValsRaw["acti_eff_date"] = now.Format("2006-01-02")
 				sqlValsRaw["acti_txn_ref_id"] = sharedRef
 				sqlValsRaw["acti_req_id"] = newUUIDv7()
-				sqlValsRaw["acti_from_acct_id"] = newUUIDv7()
-				sqlValsRaw["acti_to_acct_id"] = newUUIDv7()
 				sqlValsRaw["acti_sending_bank_rrn"] = fmt.Sprintf("%012d", rand.Int63n(1000000000000))
+				// online: what the lookup / transfer / processor consumers write. Account, pocket and TM
+				// account id are the same values the CSV row carries, so file and DB agree.
+				sqlValsRaw["acti_from_acct_id"] = csvRowMap["vfs_from_account_no"] // sender account no (ITMX fromAcctID)
+				sqlValsRaw["acti_to_acct_id"] = csvRowMap["vfs_to_tm_account_id"]  // TM account id (lookup accountId)
+				sqlValsRaw["acti_to_acct_no"] = csvRowMap["vfs_to_account_no"]     // ITMX toAcctID → TM "TR to <no>"
+				sqlValsRaw["acti_to_pocket_no"] = csvRowMap["vfs_to_pocket_no"]    // lookup pocketNumber → TM toAccountNo
+				sqlValsRaw["acti_to_cif_no"] = fmt.Sprintf("%015d", rand.Int63n(1000000000000000)) // lookup custRefId → TM toCustomerId
+				sqlValsRaw["acti_from_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
+				sqlValsRaw["acti_receiver_tax_id"] = fmt.Sprintf("%013d", rand.Int63n(10000000000000))
+				sqlValsRaw["acti_transfer_dtm"] = now.Format("2006-01-02 15:04:05.000") // DCB valueDatetime → TM transactionDateTime
+				sqlValsRaw["acti_tfr_ref_no"] = newUUIDv7()                              // DCB pibId
+				for _, col := range piiColumnsInboundActAcct {
+					if s, ok := sqlValsRaw[col].(string); ok {
+						sqlValsRaw[col] = encryptPII(s)
+					}
+				}
 			}
 
 			sqlVals := make(map[string]string)
@@ -194,6 +239,7 @@ func cmdGenerate(args []string) {
 			Table:          def.Table,
 			RefColumn:      def.RefColumn,
 			StatusColumn:   def.StatusColumn,
+			ResetStatus:    def.ResetStatus,
 			SqlColumns:     sqlCols,
 			RawCsvFilename: rawCsvFilename,
 			CsvFilename:    csvFilename,
