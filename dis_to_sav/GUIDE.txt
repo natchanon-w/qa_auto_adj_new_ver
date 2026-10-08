@@ -27,7 +27,7 @@ by generate/finalize/upload:
       "sit": {
         "bucket":         "vb-payment-sit-s3-reconcile",
         "base_path":      "dp/adjustment/dis_to_sav/2026-01-10/",
-        "aws_profile":    "s3_sit_vb",
+        "aws_profile":    "s3-cb-sit-th-dpp",
         "encryption_key": "..."
       },
       "uat": {

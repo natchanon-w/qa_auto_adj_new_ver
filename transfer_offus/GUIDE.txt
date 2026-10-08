@@ -105,7 +105,7 @@ CONFIGURATION
       "sit": {
         "bucket":         "vb-payment-sit-s3-reconcile",
         "base_path":      "dp/adjustment/transfer-offus/2026-01-10/request/",
-        "aws_profile":    "s3-sit-vb",
+        "aws_profile":    "s3-cb-sit-th-dpp",
         "region":         "",
         "encryption_key": "..."
       },
